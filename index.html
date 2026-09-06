@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Beamly - YouTube Music Desktop Player</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- App Layout -->
+  <div class="app-layout">
+    
+    <!-- Left Navigation Rail / Sidebar -->
+    <aside class="sidebar">
+      <!-- Brand & Navigation -->
+      <div class="m3-surface-card">
+        <div class="brand-row">
+          <img class="brand-logo-img" src="assets/logo.png" alt="Beamly">
+          <div class="brand-title-group">
+            <span class="brand-text">Beamly</span>
+            <span class="brand-tag">YouTube Music</span>
+          </div>
+        </div>
+
+        <nav class="sidebar-nav">
+          <div class="nav-link active" id="nav-home">
+            <svg viewBox="0 0 24 24">
+              <path d="M12.5 3.247a1 1 0 0 0-1 0L4 7.577V20h5v-6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v6h5V7.577l-7.5-4.33z"/>
+            </svg>
+            <span>Home</span>
+          </div>
+          <div class="nav-link" id="nav-search">
+            <svg viewBox="0 0 24 24">
+              <path d="M10.533 1.279c-5.18 0-9.407 4.14-9.407 9.279s4.226 9.279 9.407 9.279c2.234 0 4.29-.77 5.907-2.058l4.353 4.353a1 1 0 1 0 1.414-1.414l-4.344-4.344a9.157 9.157 0 0 0 2.077-5.816c0-5.14-4.226-9.28-9.407-9.28zm-7.407 9.279c0-4.006 3.302-7.28 7.407-7.28s7.407 3.274 7.407 7.28-3.302 7.279-7.407 7.279-7.407-3.273-7.407-7.28z"/>
+            </svg>
+            <span>Search</span>
+          </div>
+          <div class="nav-link" id="nav-library">
+            <svg viewBox="0 0 24 24">
+              <path d="M3 22a1 1 0 0 1-1-1V3a1 1 0 0 1 2 0v18a1 1 0 0 1-1 1zM15.5 2.134A1 1 0 0 0 14 3v18a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V3a1 1 0 0 0-1.5-.866zM20 20h-4V4h4v16zm-7-18a1 1 0 0 0-.5.134l-6 3.464A1 1 0 0 0 6 6.464v14a1 1 0 0 0 1.5.866l6-3.464A1 1 0 0 0 14 17V3a1 1 0 0 0-1-1zm-1 14.423-4 2.31V7.268l4-2.31v11.465z"/>
+            </svg>
+            <span>Your Library</span>
+          </div>
+          <div class="nav-link" id="nav-offline">
+            <svg viewBox="0 0 24 24">
+              <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/>
+            </svg>
+            <span>Offline Downloads</span>
+          </div>
+          <div class="nav-link" id="nav-settings">
+            <svg viewBox="0 0 24 24">
+              <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+            </svg>
+            <span>Settings</span>
+          </div>
+        </nav>
+      </div>
+
+      <!-- Prominent Google / YouTube Music Sign In Card in Sidebar -->
+      <div class="m3-surface-card sidebar-google-card" id="sidebar-google-card">
+        <div class="sidebar-google-header">
+          <svg viewBox="0 0 24 24" class="ytmusic-badge-icon">
+            <path fill="#FF0000" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/>
+          </svg>
+          <div class="sidebar-google-text">
+            <span class="sidebar-google-title">YouTube Music</span>
+            <span class="sidebar-google-sub">Sync playlists & Google library</span>
+          </div>
+        </div>
+        <button class="btn-google-sign-in" id="btn-sidebar-google-login">
+          <svg viewBox="0 0 24 24" class="google-logo-svg">
+            <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"/>
+            <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"/>
+            <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z"/>
+            <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
+          </svg>
+          <span>Sign In with Google</span>
+        </button>
+      </div>
+
+      <!-- Library Tonal Drawer in Sidebar -->
+      <div class="m3-surface-card sidebar-library">
+        <div class="library-header">
+          <button class="library-title-btn">
+            <svg viewBox="0 0 24 24">
+              <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+            </svg>
+            <span>Playlists & Mixes</span>
+          </button>
+        </div>
+
+        <div class="filter-chips">
+          <button class="filter-chip active" id="chip-all">All</button>
+          <button class="filter-chip" id="chip-playlists">Playlists</button>
+          <button class="filter-chip" id="chip-liked">Liked Songs</button>
+        </div>
+
+        <div class="library-list" id="sidebar-library-list">
+          <!-- Liked Songs item -->
+          <div class="library-item" id="sidebar-item-liked">
+            <div class="library-item-liked-icon">
+              <svg viewBox="0 0 24 24">
+                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+              </svg>
+            </div>
+            <div class="library-item-info">
+              <span class="library-item-title">Liked Songs</span>
+              <span class="library-item-sub">Auto Playlist</span>
+            </div>
+          </div>
+
+          <!-- Dynamic Playlists items -->
+          <div id="sidebar-playlists-container"></div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Panel -->
+    <main class="main-wrapper">
+      <!-- Top App Bar -->
+      <header class="topbar">
+        <div class="topbar-left">
+          <div class="nav-history-btns">
+            <button class="circle-nav-btn" id="btn-nav-back" title="Go back">
+              <svg viewBox="0 0 24 24"><path d="M15.54 21.15 7.4 13a1.41 1.41 0 0 1 0-2l8.14-8.15 1.41 1.41L9.4 12l7.55 7.74z"/></svg>
+            </button>
+            <button class="circle-nav-btn" id="btn-nav-forward" title="Go forward">
+              <svg viewBox="0 0 24 24"><path d="M8.46 2.85 16.6 11a1.41 1.41 0 0 1 0 2l-8.14 8.15-1.41-1.41L14.6 12 7.05 4.26z"/></svg>
+            </button>
+          </div>
+
+          <!-- M3 Search Bar -->
+          <div class="topbar-search-box" id="topbar-search-box">
+            <svg viewBox="0 0 24 24"><path d="M10.533 1.279c-5.18 0-9.407 4.14-9.407 9.279s4.226 9.279 9.407 9.279c2.234 0 4.29-.77 5.907-2.058l4.353 4.353a1 1 0 1 0 1.414-1.414l-4.344-4.344a9.157 9.157 0 0 0 2.077-5.816c0-5.14-4.226-9.28-9.407-9.28zm-7.407 9.279c0-4.006 3.302-7.28 7.407-7.28s7.407 3.274 7.407 7.28-3.302 7.279-7.407 7.279-7.407-3.273-7.407-7.28z"/></svg>
+            <input type="text" id="main-search-input" placeholder="Search songs, albums, or artists on YouTube Music...">
+          </div>
+        </div>
+
+        <div class="topbar-right">
+          <!-- Sleep Timer Indicator & Toggle -->
+          <button class="sleep-timer-btn" id="btn-sleep-timer" title="Sleep Timer">
+            <svg viewBox="0 0 24 24"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm4.2 14.2L11 13V7h1.5v5.2l4.5 2.7-.8 1.3z"/></svg>
+            <span id="sleep-timer-label">Timer</span>
+          </button>
+
+          <!-- Theme Toggle Switch (Sun / Moon) -->
+          <button class="theme-toggle-btn" id="btn-theme-toggle" title="Toggle Light / Dark theme">
+            <svg viewBox="0 0 24 24" id="theme-icon-sun" style="display: none;">
+              <path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58a.996.996 0 0 0-1.41 0 .996.996 0 0 0 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41L5.99 4.58zm12.37 12.37a.996.996 0 0 0-1.41 0 .996.996 0 0 0 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0a.996.996 0 0 0 0-1.41l-1.06-1.06zm1.06-10.96a.996.996 0 0 0 0-1.41.996.996 0 0 0-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06zM7.05 18.36a.996.996 0 0 0 0-1.41.996.996 0 0 0 0-1.41l-1.06-1.06z"/>
+            </svg>
+            <svg viewBox="0 0 24 24" id="theme-icon-moon">
+              <path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/>
+            </svg>
+          </button>
+
+          <!-- Settings Gear Button -->
+          <button class="settings-topbar-btn" id="btn-topbar-settings" title="Settings & Preferences">
+            <svg viewBox="0 0 24 24">
+              <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+            </svg>
+          </button>
+
+          <!-- Topbar Google Sign In Button -->
+          <button class="btn-google-sign-in topbar-google-btn" id="btn-google-login" title="Sign In with Google / YouTube Music">
+            <svg viewBox="0 0 24 24" class="google-logo-svg">
+              <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"/>
+              <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"/>
+              <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z"/>
+              <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
+            </svg>
+            <span>Sign In with Google</span>
+          </button>
+
+          <!-- Authenticated User Profile Pill (Google Account) -->
+          <div class="profile-pill" id="profile-pill" style="display: none;">
+            <img class="profile-avatar-img" id="user-avatar" src="" alt="Avatar" onerror="this.src='https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=80&auto=format&fit=crop&q=80'">
+            <span class="profile-name" id="user-display-name">Google User</span>
+            <button class="btn-logout-icon" id="btn-user-logout" title="Log Out">
+              <svg viewBox="0 0 24 24"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <!-- Scrollable Main Content -->
+      <section class="main-content" id="main-content">
+        
+        <!-- 1. Home View -->
+        <div class="home-view" id="view-home">
+          <h1 class="greeting-header" id="greeting-header">Good evening</h1>
+
+          <!-- Shelf: Quick Picks & Hits (YouTube Music) -->
+          <div class="m3-shelf-section">
+            <div class="section-title" id="home-top-tracks-title">Trending & Quick Picks</div>
+            <div class="m3-shelf-row" id="home-top-tracks-row"></div>
+          </div>
+
+          <!-- Shelf: Artists & Channels -->
+          <div class="m3-shelf-section">
+            <div class="section-title" id="home-top-artists-title">Popular Artists</div>
+            <div class="m3-shelf-row" id="home-top-artists-row"></div>
+          </div>
+
+          <!-- Shelf: Playlists & Mixes -->
+          <div class="m3-shelf-section">
+            <div class="section-title">Playlists You'll Love</div>
+            <div class="m3-shelf-row" id="home-playlists-row"></div>
+          </div>
+        </div>
+
+        <!-- 2. Search View -->
+        <div class="search-view" id="view-search" style="display: none;">
+          <h2 class="section-title" id="search-title">Search Results</h2>
+          <div class="tracks-table-wrapper">
+            <div class="track-table-header">
+              <div>#</div>
+              <div>Title</div>
+              <div>Album</div>
+              <div>Save</div>
+              <div style="text-align: right; padding-right: 6px;">Duration</div>
+            </div>
+            <div id="search-tracks-container"></div>
+          </div>
+        </div>
+
+        <!-- 3. Your Library View -->
+        <div class="library-view" id="view-library" style="display: none;">
+          <h2 class="section-title">Your Playlists & Saved Tracks</h2>
+          <div class="m3-shelf-row" id="library-playlists-grid" style="flex-wrap: wrap;"></div>
+        </div>
+
+        <!-- 4. Offline Downloads View -->
+        <div class="offline-view" id="view-offline" style="display: none;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 20px;">
+            <div>
+              <h2 class="section-title" style="margin-bottom: 4px;">Offline Downloads</h2>
+              <p style="font-size: 0.86rem; color: var(--md-sys-color-on-surface-variant);">Downloaded tracks saved locally for instant offline listening.</p>
+            </div>
+            <div id="offline-stats" style="font-size: 0.84rem; color: var(--md-sys-color-primary); font-weight: 700;">0 tracks</div>
+          </div>
+
+          <div class="tracks-table-wrapper">
+            <div class="track-table-header">
+              <div>#</div>
+              <div>Title</div>
+              <div>Album</div>
+              <div>Delete</div>
+              <div style="text-align: right; padding-right: 6px;">Duration</div>
+            </div>
+            <div id="offline-tracks-container"></div>
+          </div>
+        </div>
+
+        <!-- 5. Dedicated Playlist / Album View -->
+        <div class="playlist-view" id="view-playlist" style="display: none;">
+          <div class="hero-header">
+            <img class="hero-art-img" id="pl-hero-art" src="assets/logo.png" alt="Art" onerror="this.onerror=null; this.src='assets/logo.png';">
+            <div class="hero-details">
+              <span class="hero-tag">Playlist</span>
+              <h1 class="hero-title" id="pl-hero-title">Playlist Title</h1>
+              <p class="hero-desc" id="pl-hero-desc"></p>
+              <div class="hero-meta">
+                <span id="pl-creator">YouTube Music</span>
+                <span>•</span>
+                <span id="pl-track-count">0 songs</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="hero-controls-row">
+            <button class="giant-play-btn" id="pl-play-all-btn" title="Play All">
+              <svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+            </button>
+            <button class="btn-m3-filled" id="pl-download-all-btn" title="Download all songs for offline listening">
+              <svg viewBox="0 0 24 24" style="width: 18px; height: 18px; fill: currentColor;"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+              <span>Download All</span>
+            </button>
+          </div>
+
+          <div class="tracks-table-wrapper">
+            <div class="track-table-header">
+              <div>#</div>
+              <div>Title</div>
+              <div>Album</div>
+              <div>Save</div>
+              <div style="text-align: right; padding-right: 6px;">Duration</div>
+            </div>
+            <div id="pl-tracks-container"></div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- Live Synced Lyrics Overlay -->
+      <div class="lyrics-overlay" id="lyrics-overlay">
+        <div class="lyrics-top-nav">
+          <div class="lyrics-song-info">
+            <img class="lyrics-song-thumb" id="lyrics-song-thumb" src="assets/logo.png" alt="Thumb" onerror="this.onerror=null; this.src='assets/logo.png';">
+            <div>
+              <div class="lyrics-song-title" id="lyrics-song-title">Song Title</div>
+              <div class="lyrics-song-artist" id="lyrics-song-artist">Artist</div>
+            </div>
+          </div>
+          <button class="lyrics-close-btn" id="lyrics-close-btn" title="Close lyrics">✕</button>
+        </div>
+
+        <div class="lyrics-scroll-body" id="lyrics-scroll-body">
+          <div class="lyrics-msg">No track playing</div>
+        </div>
+      </div>
+
+      <!-- Playback Queue Drawer Overlay -->
+      <div class="queue-overlay" id="queue-overlay">
+        <div class="queue-top-nav">
+          <div class="queue-header-title">
+            <svg viewBox="0 0 24 24" style="width: 22px; height: 22px; fill: currentColor;"><path d="M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zM17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z"/></svg>
+            <span>Play Queue</span>
+            <span class="queue-count-tag" id="queue-count-tag">0 songs</span>
+          </div>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <button class="btn-m3-text" id="btn-clear-queue" style="font-size: 0.78rem; padding: 4px 10px;">Clear</button>
+            <button class="lyrics-close-btn" id="queue-close-btn" title="Close queue">✕</button>
+          </div>
+        </div>
+
+        <div class="queue-body">
+          <div class="queue-section-label">Now Playing</div>
+          <div class="queue-now-playing-card" id="queue-now-playing">
+            <div style="color: var(--md-sys-color-on-surface-variant); font-size: 0.88rem; padding: 12px 0;">No track playing</div>
+          </div>
+
+          <div class="queue-section-label" style="margin-top: 24px;">Next In Queue</div>
+          <div class="queue-list" id="queue-list-container">
+            <div style="color: var(--md-sys-color-on-surface-variant); font-size: 0.85rem; padding: 12px 0;">Queue is empty. Click "+ Queue" on any track.</div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Persistent M3 Player Bar -->
+  <footer class="player-bar">
+    <!-- Left: Album Thumbnail, Title, Artist, Offline Badge -->
+    <div class="player-left">
+      <img class="player-cover" id="p-cover" src="assets/logo.png" alt="Cover" onerror="this.onerror=null; this.src='assets/logo.png';">
+      <div class="player-meta">
+        <div class="player-title" id="p-title">No track playing</div>
+        <div class="player-artist" id="p-artist">Beamly Player</div>
+        <div class="player-badges-row">
+          <span class="player-badge" id="p-status-badge">Ready</span>
+          <span class="player-badge offline" id="p-offline-badge" style="display: none;">Offline File</span>
+        </div>
+      </div>
+      <button class="p-icon-btn" id="p-heart-btn" title="Save to Liked Songs">
+        <svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+      </button>
+    </div>
+
+    <!-- Center: Playback Controls & Timeline -->
+    <div class="player-center">
+      <div class="player-controls-row">
+        <!-- Shuffle -->
+        <button class="p-icon-btn" id="p-shuffle-btn" title="Shuffle">
+          <svg viewBox="0 0 24 24"><path d="M10.59 9.17 5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg>
+        </button>
+        <!-- Previous -->
+        <button class="p-icon-btn" id="p-prev-btn" title="Previous">
+          <svg viewBox="0 0 24 24"><polygon points="6 6 6 18 8 18 8 6 6 6"></polygon><polygon points="18 6 9.5 12 18 18 18 6"></polygon></svg>
+        </button>
+        <!-- Circular Play/Pause -->
+        <button class="play-toggle-btn" id="p-play-btn" title="Play">
+          <svg viewBox="0 0 24 24" id="p-play-icon"><polygon points="6 4 20 12 6 20 6 4"></polygon></svg>
+        </button>
+        <!-- Next -->
+        <button class="p-icon-btn" id="p-next-btn" title="Next">
+          <svg viewBox="0 0 24 24"><polygon points="16 6 16 18 18 18 18 6"></polygon><polygon points="6 6 14.5 12 6 18 6 6"></polygon></svg>
+        </button>
+        <!-- Repeat -->
+        <button class="p-icon-btn" id="p-repeat-btn" title="Enable repeat">
+          <svg viewBox="0 0 24 24"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/></svg>
+        </button>
+      </div>
+
+      <!-- Timeline slider -->
+      <div class="playback-bar">
+        <span class="playback-time" id="p-current-time">0:00</span>
+        <div class="progress-track" id="p-progress-track">
+          <div class="progress-fill" id="p-progress-fill"></div>
+          <input type="range" class="progress-slider" id="p-progress-slider" min="0" max="100" value="0" step="0.1">
+        </div>
+        <span class="playback-time" id="p-duration-time">0:00</span>
+      </div>
+    </div>
+
+    <!-- Right Controls: Download, Lyrics, Queue, Cast, Volume -->
+    <div class="player-right">
+      <!-- Download active track button -->
+      <button class="r-action-btn" id="r-download-btn" title="Download song for offline listening">
+        <svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+      </button>
+
+      <!-- Live Synced Lyrics -->
+      <button class="r-action-btn" id="r-lyrics-btn" title="Live Lyrics">
+        <svg viewBox="0 0 24 24">
+          <path d="M12 2c5.523 0 10 4.477 10 10s-4.477 10-10 10S2 17.523 2 12 6.477 2 12 2zm1 5h-2v7a2 2 0 1 0 2 2V7zm-2 9a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/>
+        </svg>
+      </button>
+
+      <!-- Queue Button -->
+      <button class="r-action-btn" id="r-queue-btn" title="Playback Queue">
+        <svg viewBox="0 0 24 24">
+          <path d="M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zM17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z"/>
+        </svg>
+      </button>
+
+      <!-- Cast Button -->
+      <button class="r-action-btn" id="r-cast-btn" title="Cast audio">
+        <svg viewBox="0 0 24 24">
+          <path d="M1 18v3h3c0-1.66-1.34-3-3-3zm0-4v2c2.76 0 5 2.24 5 5h2c0-3.87-3.13-7-7-7zm0-4v2c4.97 0 9 4.03 9 9h2c0-6.08-4.93-11-11-11zm20-7H3c-1.1 0-2 .9-2 2v3h2V5h18v14h-7v2h7c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/>
+        </svg>
+      </button>
+
+      <!-- Volume Bar -->
+      <div class="volume-bar">
+        <button class="r-action-btn" id="r-vol-icon-btn" title="Mute">
+          <svg viewBox="0 0 24 24" id="r-vol-icon">
+            <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+          </svg>
+        </button>
+        <div class="volume-track" id="p-volume-track">
+          <div class="volume-fill" id="p-volume-fill"></div>
+          <input type="range" class="volume-slider" id="p-volume-slider" min="0" max="1" step="0.01" value="0.8">
+        </div>
+      </div>
+
+      <!-- Cast Popover Dropdown -->
+      <div class="cast-popover" id="r-cast-popover">
+        <div class="cast-popover-title">Connect to a device</div>
+        <div class="cast-popover-list" id="r-cast-devices-list">
+          <div style="font-size: 0.8rem; color: var(--md-sys-color-on-surface-variant);">Scanning Wi-Fi for Cast devices...</div>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Material 3 Sleep Timer Dialog -->
+  <div class="m3-dialog-backdrop" id="sleep-timer-dialog">
+    <div class="m3-dialog-card">
+      <div class="m3-dialog-title">Set Sleep Timer</div>
+      <div class="timer-options-list">
+        <button class="timer-option-btn" data-minutes="15">
+          <span>15 minutes</span>
+          <span class="timer-check"></span>
+        </button>
+        <button class="timer-option-btn" data-minutes="30">
+          <span>30 minutes</span>
+          <span class="timer-check"></span>
+        </button>
+        <button class="timer-option-btn" data-minutes="45">
+          <span>45 minutes</span>
+          <span class="timer-check"></span>
+        </button>
+        <button class="timer-option-btn" data-minutes="60">
+          <span>1 hour</span>
+          <span class="timer-check"></span>
+        </button>
+        <button class="timer-option-btn" data-minutes="end_of_track">
+          <span>End of current track</span>
+          <span class="timer-check"></span>
+        </button>
+        <button class="timer-option-btn" data-minutes="0">
+          <span>Turn off timer</span>
+          <span class="timer-check"></span>
+        </button>
+      </div>
+      <div class="m3-dialog-actions">
+        <button class="btn-m3-text" id="btn-close-timer-dialog">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Material 3 Settings Modal Dialog -->
+  <div class="settings-modal-backdrop" id="settings-modal">
+    <div class="settings-modal-card" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <!-- Modal Header -->
+      <div class="settings-header">
+        <div class="settings-header-text">
+          <div class="settings-title-row">
+            <svg viewBox="0 0 24 24" class="settings-title-icon"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+            <h2 id="settings-title">Settings</h2>
+          </div>
+          <p class="settings-subtitle">Manage audio streaming, interface theme, Google account sync, and local storage cache.</p>
+        </div>
+        <button class="settings-close-btn" id="btn-close-settings" title="Close Settings">✕</button>
+      </div>
+
+      <!-- Modal Body (Scrollable) -->
+      <div class="settings-body">
+        
+        <!-- Section 1: Account & Authentication -->
+        <div class="settings-section">
+          <div class="settings-section-header">
+            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
+            <span>Google / YouTube Music Account</span>
+          </div>
+          
+          <div class="settings-card account-card">
+            <div class="account-card-left">
+              <img class="account-card-avatar" id="settings-user-avatar" src="assets/logo.png" alt="Avatar" onerror="this.onerror=null; this.src='assets/logo.png';">
+              <div class="account-card-info">
+                <span class="account-card-name" id="settings-user-name">Guest User</span>
+                <span class="account-card-status" id="settings-user-status">Not Connected</span>
+              </div>
+            </div>
+            <div class="account-card-right">
+              <button class="btn-settings-auth" id="btn-settings-auth-action">Sign In with Google</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 2: Audio Quality & Playback -->
+        <div class="settings-section">
+          <div class="settings-section-header">
+            <svg viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+            <span>Audio Quality & Streaming</span>
+          </div>
+
+          <div class="settings-row">
+            <div class="setting-text">
+              <span class="setting-label">Streaming Bitrate</span>
+              <span class="setting-desc">Select desired audio stream quality preference for playback.</span>
+            </div>
+            <div class="segmented-control" id="audio-quality-segmented">
+              <button class="seg-btn" data-quality="low">64 kbps<span>Data Saver</span></button>
+              <button class="seg-btn active" data-quality="normal">128 kbps<span>Normal</span></button>
+              <button class="seg-btn" data-quality="high">256 kbps<span>High</span></button>
+            </div>
+          </div>
+
+          <div class="settings-row">
+            <div class="setting-text">
+              <span class="setting-label">Local Audio Proxy</span>
+              <span class="setting-desc">Routes audio chunks through 127.0.0.1:8888 with Android Music client headers to prevent 403 Forbidden blocks.</span>
+            </div>
+            <div class="status-indicator-badge success">
+              <span class="status-dot"></span>
+              <span>Active (Port 8888)</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 3: Appearance & Theme -->
+        <div class="settings-section">
+          <div class="settings-section-header">
+            <svg viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg>
+            <span>Appearance & Theme</span>
+          </div>
+
+          <div class="settings-row">
+            <div class="setting-text">
+              <span class="setting-label">Application Theme</span>
+              <span class="setting-desc">Switch between Material 3 Deep Dark and Clean Light interfaces.</span>
+            </div>
+            <div class="segmented-control" id="theme-segmented">
+              <button class="seg-btn active" data-theme-val="dark" id="btn-theme-seg-dark">
+                <svg viewBox="0 0 24 24" style="width: 14px; height: 14px; fill: currentColor;"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg>
+                <span>Dark</span>
+              </button>
+              <button class="seg-btn" data-theme-val="light" id="btn-theme-seg-light">
+                <svg viewBox="0 0 24 24" style="width: 14px; height: 14px; fill: currentColor;"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1z"/></svg>
+                <span>Light</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 4: Cache & Database Storage -->
+        <div class="settings-section">
+          <div class="settings-section-header">
+            <svg viewBox="0 0 24 24"><path d="M20 13H4c-.55 0-1 .45-1 1v6c0 .55.45 1 1 1h16c.55 0 1-.45 1-1v-6c0-.55-.45-1-1-1zM4 3h16c.55 0 1 .45 1 1v6c0 .55-.45 1-1 1H4c-.55 0-1-.45-1-1V4c0-.55.45-1 1-1z"/></svg>
+            <span>Storage & Cache Management</span>
+          </div>
+
+          <div class="cache-stats-grid">
+            <div class="cache-stat-item">
+              <span class="cache-stat-val" id="stat-db-size">0 KB</span>
+              <span class="cache-stat-label">JSON Cache File</span>
+            </div>
+            <div class="cache-stat-item">
+              <span class="cache-stat-val" id="stat-matches-count">0</span>
+              <span class="cache-stat-label">Track Matches</span>
+            </div>
+            <div class="cache-stat-item">
+              <span class="cache-stat-val" id="stat-offline-count">0</span>
+              <span class="cache-stat-label">Offline Tracks</span>
+            </div>
+          </div>
+
+          <div class="cache-actions-row">
+            <button class="btn-settings-secondary" id="btn-settings-clear-matches">
+              <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+              <span>Clear Track Match Cache</span>
+            </button>
+            <button class="btn-settings-danger" id="btn-settings-clear-all">
+              <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+              <span>Purge Cache Database</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Section 5: About Beamly -->
+        <div class="settings-section about-section">
+          <div class="settings-section-header">
+            <svg viewBox="0 0 24 24"><path d="M11 17h2v-6h-2v6zm1-15C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zM11 9h2V7h-2v2z"/></svg>
+            <span>About Beamly</span>
+          </div>
+          <div class="about-card">
+            <div class="about-top">
+              <img src="assets/logo.png" alt="Beamly" class="about-logo">
+              <div>
+                <div class="about-title">Beamly Desktop <span class="about-ver">v1.0.0</span></div>
+                <div class="about-sub">Pure YouTube Music Desktop Client • Electron + youtubei.js + JSON Storage</div>
+              </div>
+            </div>
+            <div class="about-features-tags">
+              <span class="m3-tag">Ad-Free Playback</span>
+              <span class="m3-tag">Synced LRC Lyrics</span>
+              <span class="m3-tag">Local 8888 Stream Proxy</span>
+              <span class="m3-tag">Google Cast Audio</span>
+              <span class="m3-tag">Offline Library</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="settings-footer">
+        <button class="btn-settings-primary" id="btn-settings-done">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hidden HTML5 Audio Element -->
+  <audio id="audio-player" preload="auto"></audio>
+
+  <!-- Renderer Script -->
+  <script src="renderer.js"></script>
+</body>
+</html>

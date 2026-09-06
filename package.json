@@ -1,0 +1,65 @@
+{
+  "name": "beamly",
+  "version": "1.0.0",
+  "description": "Ad-free YouTube Music desktop player",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder",
+    "dist": "electron-builder --win",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "build": {
+    "appId": "com.beamly.app",
+    "productName": "Beamly",
+    "npmRebuild": false,
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "**/*",
+      "!dist/*",
+      "!cache.db",
+      "!cache.json",
+      "!cache.json.tmp",
+      "!.git/*"
+    ],
+    "asar": true,
+    "win": {
+      "icon": "assets/icon.ico",
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false
+    }
+  },
+  "keywords": [
+    "youtube-music",
+    "electron",
+    "music-player",
+    "ad-free",
+    "desktop-app",
+    "chromecast",
+    "lyrics"
+  ],
+  "author": "meetgharat84",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/meetgharat84/Beamly.git"
+  },
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "chromecasts": "^1.10.2",
+    "express": "^5.2.1",
+    "fuse.js": "^7.5.0",
+    "play-dl": "^1.9.7",
+    "youtubei.js": "^18.0.0"
+  },
+  "devDependencies": {
+    "electron": "^44.2.0",
+    "electron-builder": "^26.15.3"
+  }
+}
