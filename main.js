@@ -327,6 +327,26 @@ ipcMain.handle('ytmusic:search', async (event, args) => {
   }
 });
 
+ipcMain.handle('ytmusic:search-suggestions', async (event, query) => {
+  try {
+    const q = typeof query === 'object' && query !== null ? query.query : query;
+    return await youtubeResolver.getSearchSuggestions(q);
+  } catch (err) {
+    console.error('ytmusic:search-suggestions error:', err);
+    return { queries: [], entities: [] };
+  }
+});
+
+ipcMain.handle('ytmusic:get-mood-feed', async (event, mood) => {
+  try {
+    const m = typeof mood === 'object' && mood !== null ? mood.mood : mood;
+    return await youtubeResolver.getMoodFeed(m);
+  } catch (err) {
+    console.error('ytmusic:get-mood-feed error:', err);
+    return { mood: 'Chill', playlists: [], tracks: [] };
+  }
+});
+
 // Alias for backwards compatibility
 ipcMain.handle('search-music', async (event, args) => {
   const query = typeof args === 'object' && args !== null ? args.query : args;

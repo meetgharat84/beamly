@@ -21,8 +21,14 @@ contextBridge.exposeInMainWorld('beamly', {
   getRelatedTracks: (videoId) => ipcRenderer.invoke('ytmusic:get-related', videoId),
   getLibrary: () => ipcRenderer.invoke('ytmusic:get-library'),
   getPlaylist: (playlistId) => ipcRenderer.invoke('ytmusic:get-playlist', playlistId),
-  importPlaylist: (urlOrId) => ipcRenderer.invoke('ytmusic:import-playlist', urlOrId),
-  search: (query, type = 'all') => ipcRenderer.invoke('ytmusic:search', { query, type }),
+  search: (queryOrOptions, type = 'all') => {
+    const payload = typeof queryOrOptions === 'object' && queryOrOptions !== null
+      ? queryOrOptions
+      : { query: queryOrOptions, type };
+    return ipcRenderer.invoke('ytmusic:search', payload);
+  },
+  getSearchSuggestions: (query) => ipcRenderer.invoke('ytmusic:search-suggestions', query),
+  getMoodFeed: (mood) => ipcRenderer.invoke('ytmusic:get-mood-feed', mood),
 
   // Local Playlists Management
   createLocalPlaylist: (dataOrName, description) => {

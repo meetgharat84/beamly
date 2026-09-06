@@ -95,6 +95,10 @@ const el = {
   btnNavForward: document.getElementById('btn-nav-forward'),
   topbarSearchBox: document.getElementById('topbar-search-box'),
   searchInput: document.getElementById('main-search-input') || document.getElementById('spotify-search-input'),
+  searchClearBtn: document.getElementById('btn-search-clear'),
+  searchSuggestionsPopover: document.getElementById('search-suggestions-popover'),
+  suggestionsQueriesList: document.getElementById('suggestions-queries-list'),
+  suggestionsEntitiesList: document.getElementById('suggestions-entities-list'),
 
   // Sleep Timer & Theme
   btnSleepTimer: document.getElementById('btn-sleep-timer'),
@@ -133,6 +137,14 @@ const el = {
 
   // Home View Categorized Containers
   greetingHeader: document.getElementById('greeting-header'),
+  homeMoodChips: document.querySelectorAll('#home-mood-chips .mood-chip'),
+  homeMoodFeedSection: document.getElementById('home-mood-feed-section'),
+  homeMoodFeedTitle: document.getElementById('home-mood-feed-title'),
+  homeMoodPlaylistsRow: document.getElementById('home-mood-playlists-row'),
+  homeMoodTracksContainer: document.getElementById('home-mood-tracks-container'),
+  homeStandardSections: document.getElementById('home-standard-sections'),
+  homeQuickPicksSection: document.getElementById('home-quick-picks-section'),
+  homeQuickPicksRow: document.getElementById('home-quick-picks-row'),
   homeSimilarSection: document.getElementById('home-similar-section'),
   homeSimilarTitle: document.getElementById('home-similar-title'),
   homeSimilarRow: document.getElementById('home-similar-row'),
@@ -148,6 +160,9 @@ const el = {
 
   // Search View Containers & Filters
   searchTitle: document.getElementById('search-title'),
+  searchDidYouMean: document.getElementById('search-did-you-mean'),
+  btnDidYouMeanTerm: document.getElementById('btn-did-you-mean-term'),
+  btnDidYouMeanOrig: document.getElementById('btn-did-you-mean-orig'),
   searchTracksWrapper: document.getElementById('search-tracks-wrapper'),
   searchTracksContainer: document.getElementById('search-tracks-container'),
   searchAlbumsSection: document.getElementById('search-albums-section'),
@@ -565,6 +580,24 @@ async function loadHomeContent() {
     const curated = await window.beamly.getCuratedHome();
     if (!curated) return;
 
+    // 0. Render Quick Picks / Based on Recent Plays
+    if (el.homeQuickPicksRow) {
+      el.homeQuickPicksRow.innerHTML = '';
+      const quickPicks = (curated.similarSection?.tracks && curated.similarSection.tracks.length > 0)
+        ? curated.similarSection.tracks.slice(0, 10)
+        : (curated.topCharts || []).slice(0, 10);
+
+      if (quickPicks.length > 0) {
+        quickPicks.forEach((track, idx) => {
+          const card = createTrackCard(track, quickPicks, idx);
+          el.homeQuickPicksRow.appendChild(card);
+        });
+        if (el.homeQuickPicksSection) el.homeQuickPicksSection.style.display = 'block';
+      } else if (el.homeQuickPicksSection) {
+        el.homeQuickPicksSection.style.display = 'none';
+      }
+    }
+
     // 1. Render Similar to Last Played Section
     if (el.homeSimilarSection && el.homeSimilarRow) {
       const sim = curated.similarSection;
@@ -616,9 +649,65 @@ async function loadHomeContent() {
         el.homePlaylistsRow.appendChild(card);
       });
     }
+
+    // 6. Setup Mood Filter Chips
+    setupHomeMoodChips();
   } catch (err) {
     console.error('Failed to load curated home content:', err);
   }
+}
+
+function setupHomeMoodChips() {
+  const moodChips = document.querySelectorAll('#home-mood-chips .mood-chip');
+  moodChips.forEach(chip => {
+    chip.onclick = async () => {
+      moodChips.forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+
+      const mood = chip.dataset.mood || 'all';
+      if (mood === 'all') {
+        if (el.homeStandardSections) el.homeStandardSections.style.display = 'block';
+        if (el.homeMoodFeedSection) el.homeMoodFeedSection.style.display = 'none';
+        return;
+      }
+
+      // Specific Mood Feed (e.g. Chill, Focus, Workout, Party, Sleep)
+      if (el.homeStandardSections) el.homeStandardSections.style.display = 'none';
+      if (el.homeMoodFeedSection) {
+        el.homeMoodFeedSection.style.display = 'block';
+        if (el.homeMoodFeedTitle) el.homeMoodFeedTitle.textContent = `${mood} Playlists & Mixes`;
+        if (el.homeMoodPlaylistsRow) el.homeMoodPlaylistsRow.innerHTML = '<div style="padding: 20px; color: var(--md-sys-color-on-surface-variant);">Loading curated mood playlists...</div>';
+        if (el.homeMoodTracksContainer) el.homeMoodTracksContainer.innerHTML = '';
+      }
+
+      try {
+        const moodData = await window.beamly.getMoodFeed(mood);
+        if (!moodData) return;
+
+        // Render mood playlists
+        if (el.homeMoodPlaylistsRow) {
+          el.homeMoodPlaylistsRow.innerHTML = '';
+          const playlists = moodData.playlists || [];
+          if (playlists.length === 0) {
+            el.homeMoodPlaylistsRow.innerHTML = '<div style="padding: 16px; color: var(--md-sys-color-on-surface-variant);">No playlists found for this mood.</div>';
+          } else {
+            playlists.forEach(pl => {
+              const card = createPlaylistCard(pl);
+              el.homeMoodPlaylistsRow.appendChild(card);
+            });
+          }
+        }
+
+        // Render mood tracks
+        if (el.homeMoodTracksContainer) {
+          const tracks = moodData.tracks || [];
+          renderTrackTable(el.homeMoodTracksContainer, tracks, tracks);
+        }
+      } catch (err) {
+        console.error('Failed to fetch mood feed:', err);
+      }
+    };
+  });
 }
 
 function createArtistCard(artist) {
@@ -1022,31 +1111,103 @@ function renderTrackTable(container, tracks, tracklist = [], isOfflineView = fal
 }
 
 // -------------------------------------------------------------------
-// 10. Search Functionality (YouTube Music Catalog)
 // -------------------------------------------------------------------
+// 10. Search Functionality & Live Autocomplete
+// -------------------------------------------------------------------
+
+let suggestionItems = [];
+let selectedSuggestionIdx = -1;
 
 function setupSearch() {
   if (el.searchInput) {
+    // Input Event: Debounced Autocomplete
     el.searchInput.addEventListener('input', (e) => {
-      const query = e.target.value.trim();
+      const query = e.target.value;
+      const trimmed = query.trim();
+
+      // Clear button visibility
+      if (el.searchClearBtn) {
+        el.searchClearBtn.style.display = trimmed.length > 0 ? 'inline-flex' : 'none';
+      }
+
       clearTimeout(state.searchDebounceTimer);
 
-      if (!query) {
+      if (!trimmed) {
+        hideSearchSuggestions();
         if (el.searchTracksContainer) el.searchTracksContainer.innerHTML = '';
         if (el.searchAlbumsRow) el.searchAlbumsRow.innerHTML = '';
         if (el.searchArtistsRow) el.searchArtistsRow.innerHTML = '';
         if (el.searchTitle) el.searchTitle.textContent = 'Search Results';
+        if (el.searchDidYouMean) el.searchDidYouMean.style.display = 'none';
         return;
       }
 
       state.searchDebounceTimer = setTimeout(async () => {
-        if (state.currentView !== 'search') {
-          navigateTo('search');
+        await fetchAndRenderSuggestions(trimmed);
+      }, 160);
+    });
+
+    // Keyboard Navigation for Suggestions Dropdown
+    el.searchInput.addEventListener('keydown', (e) => {
+      if (!el.searchSuggestionsPopover || el.searchSuggestionsPopover.style.display === 'none') {
+        if (e.key === 'Enter') {
+          const q = el.searchInput.value.trim();
+          if (q) {
+            hideSearchSuggestions();
+            if (state.currentView !== 'search') navigateTo('search');
+            executeSearch(q);
+          }
         }
-        executeSearch(query);
-      }, 350);
+        return;
+      }
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        navigateSuggestions(1);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        navigateSuggestions(-1);
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (selectedSuggestionIdx >= 0 && selectedSuggestionIdx < suggestionItems.length) {
+          activateSuggestion(suggestionItems[selectedSuggestionIdx]);
+        } else {
+          const q = el.searchInput.value.trim();
+          if (q) {
+            hideSearchSuggestions();
+            if (state.currentView !== 'search') navigateTo('search');
+            executeSearch(q);
+          }
+        }
+      } else if (e.key === 'Escape') {
+        hideSearchSuggestions();
+      }
     });
   }
+
+  // Clear button click
+  if (el.searchClearBtn) {
+    el.searchClearBtn.addEventListener('click', () => {
+      if (el.searchInput) {
+        el.searchInput.value = '';
+        el.searchInput.focus();
+      }
+      el.searchClearBtn.style.display = 'none';
+      hideSearchSuggestions();
+      if (el.searchTracksContainer) el.searchTracksContainer.innerHTML = '';
+      if (el.searchAlbumsRow) el.searchAlbumsRow.innerHTML = '';
+      if (el.searchArtistsRow) el.searchArtistsRow.innerHTML = '';
+      if (el.searchTitle) el.searchTitle.textContent = 'Search Results';
+      if (el.searchDidYouMean) el.searchDidYouMean.style.display = 'none';
+    });
+  }
+
+  // Dismiss suggestions on click outside
+  document.addEventListener('click', (e) => {
+    if (el.topbarSearchBox && !el.topbarSearchBox.contains(e.target)) {
+      hideSearchSuggestions();
+    }
+  });
 
   // Bind Search Filter Chips (All, Songs, Albums, Artists)
   const chips = document.querySelectorAll('#search-filter-chips .filter-chip');
@@ -1054,7 +1215,7 @@ function setupSearch() {
     chip.addEventListener('click', () => {
       chips.forEach(c => c.classList.remove('active'));
       chip.classList.add('active');
-      state.searchCategory = chip.dataset.category || 'all';
+      state.searchCategory = chip.dataset.searchType || chip.dataset.category || 'all';
 
       const currentQuery = el.searchInput ? el.searchInput.value.trim() : '';
       if (currentQuery) {
@@ -1064,8 +1225,159 @@ function setupSearch() {
   });
 }
 
+function navigateSuggestions(delta) {
+  if (suggestionItems.length === 0) return;
+  suggestionItems.forEach(item => item.el.classList.remove('selected'));
+
+  selectedSuggestionIdx += delta;
+  if (selectedSuggestionIdx >= suggestionItems.length) {
+    selectedSuggestionIdx = 0;
+  } else if (selectedSuggestionIdx < 0) {
+    selectedSuggestionIdx = suggestionItems.length - 1;
+  }
+
+  const current = suggestionItems[selectedSuggestionIdx];
+  if (current && current.el) {
+    current.el.classList.add('selected');
+    current.el.scrollIntoView({ block: 'nearest' });
+  }
+}
+
+function activateSuggestion(item) {
+  hideSearchSuggestions();
+  if (!item) return;
+
+  if (item.type === 'query') {
+    if (el.searchInput) el.searchInput.value = item.value;
+    if (state.currentView !== 'search') navigateTo('search');
+    executeSearch(item.value);
+  } else if (item.type === 'entity') {
+    const entity = item.value;
+    if (entity.type === 'artist') {
+      if (el.searchInput) el.searchInput.value = entity.title;
+      navigateTo('search');
+      executeSearch(entity.title);
+    } else if (entity.type === 'album') {
+      openPlaylist(entity.id);
+    } else {
+      playTrack(entity, [entity], 0);
+    }
+  }
+}
+
+async function fetchAndRenderSuggestions(query) {
+  if (!query || query.length < 1) {
+    hideSearchSuggestions();
+    return;
+  }
+
+  try {
+    const data = await window.beamly.getSearchSuggestions(query);
+    if (!data || (!data.queries?.length && !data.entities?.length)) {
+      hideSearchSuggestions();
+      return;
+    }
+    renderSearchSuggestions(data, query);
+  } catch (err) {
+    console.warn('Failed to fetch suggestions:', err.message);
+  }
+}
+
+function renderSearchSuggestions(data, currentQuery) {
+  if (!el.searchSuggestionsPopover) return;
+
+  const queries = data.queries || [];
+  const entities = data.entities || [];
+  suggestionItems = [];
+  selectedSuggestionIdx = -1;
+
+  // 1. Render text queries
+  if (el.suggestionsQueriesList) {
+    el.suggestionsQueriesList.innerHTML = '';
+    queries.forEach((q) => {
+      const row = document.createElement('div');
+      row.className = 'suggestion-query-item';
+      row.dataset.query = q;
+      row.innerHTML = `
+        <svg class="suggestion-icon" viewBox="0 0 24 24"><path d="M10.533 1.279c-5.18 0-9.407 4.14-9.407 9.279s4.226 9.279 9.407 9.279c2.234 0 4.29-.77 5.907-2.058l4.353 4.353a1 1 0 1 0 1.414-1.414l-4.344-4.344a9.157 9.157 0 0 0 2.077-5.816c0-5.14-4.226-9.28-9.407-9.28zm-7.407 9.279c0-4.006 3.302-7.28 7.407-7.28s7.407 3.274 7.407 7.28-3.302 7.279-7.407 7.279-7.407-3.273-7.407-7.28z"/></svg>
+        <span class="suggestion-text">${escapeHtml(q)}</span>
+        <button class="suggestion-fill-btn" title="Insert query" data-fill="${escapeHtml(q)}">
+          <svg viewBox="0 0 24 24" style="width: 14px; height: 14px; fill: currentColor;"><path d="M5 13h11.86l-5.43 5.43 1.42 1.42L21.14 12l-8.29-8.29-1.42 1.42L16.86 11H5v2z"/></svg>
+        </button>
+      `;
+
+      row.addEventListener('click', (e) => {
+        if (e.target.closest('[data-fill]')) {
+          e.stopPropagation();
+          if (el.searchInput) {
+            el.searchInput.value = q;
+            el.searchInput.focus();
+            fetchAndRenderSuggestions(q);
+          }
+          return;
+        }
+        if (el.searchInput) el.searchInput.value = q;
+        hideSearchSuggestions();
+        if (state.currentView !== 'search') navigateTo('search');
+        executeSearch(q);
+      });
+
+      el.suggestionsQueriesList.appendChild(row);
+      suggestionItems.push({ type: 'query', value: q, el: row });
+    });
+  }
+
+  // 2. Render direct entity matches (songs, artists, albums)
+  if (el.suggestionsEntitiesList) {
+    el.suggestionsEntitiesList.innerHTML = '';
+    if (entities.length > 0) {
+      const header = document.createElement('div');
+      header.className = 'suggestions-entities-header';
+      header.textContent = 'Top Matches';
+      el.suggestionsEntitiesList.appendChild(header);
+
+      entities.forEach((entity) => {
+        const item = document.createElement('div');
+        item.className = 'suggestion-entity-item';
+        const isArtist = entity.type === 'artist';
+        const artUrl = getArtworkUrl(entity);
+
+        item.innerHTML = `
+          <img class="suggestion-entity-thumb ${isArtist ? 'artist-round' : ''}" src="${escapeHtml(artUrl)}" alt="Art" onerror="this.onerror=null; this.src='${FALLBACK_NOTE_ICON}';">
+          <div class="suggestion-entity-meta">
+            <span class="suggestion-entity-title">${escapeHtml(entity.title)}</span>
+            <span class="suggestion-entity-sub">${escapeHtml(entity.artist || entity.type)}</span>
+          </div>
+          <span class="suggestion-type-tag">${escapeHtml(entity.type || 'Song')}</span>
+        `;
+
+        item.addEventListener('click', () => {
+          activateSuggestion({ type: 'entity', value: entity, el: item });
+        });
+
+        el.suggestionsEntitiesList.appendChild(item);
+        suggestionItems.push({ type: 'entity', value: entity, el: item });
+      });
+      el.suggestionsEntitiesList.style.display = 'block';
+    } else {
+      el.suggestionsEntitiesList.style.display = 'none';
+    }
+  }
+
+  el.searchSuggestionsPopover.style.display = 'flex';
+}
+
+function hideSearchSuggestions() {
+  if (el.searchSuggestionsPopover) {
+    el.searchSuggestionsPopover.style.display = 'none';
+  }
+  selectedSuggestionIdx = -1;
+  suggestionItems = [];
+}
+
 async function executeSearch(query) {
   if (!query) return;
+  hideSearchSuggestions();
 
   try {
     const category = state.searchCategory || 'all';
@@ -1079,6 +1391,30 @@ async function executeSearch(query) {
     const tracks = (results && results.tracks) ? results.tracks : (Array.isArray(results) ? results : []);
     const albums = results?.albums || [];
     const artists = results?.artists || [];
+
+    // Typo resilience / Did-You-Mean banner handling
+    if (el.searchDidYouMean) {
+      if (results?.didYouMean && results.didYouMean.toLowerCase() !== query.toLowerCase()) {
+        el.searchDidYouMean.style.display = 'flex';
+        if (el.btnDidYouMeanTerm) {
+          el.btnDidYouMeanTerm.textContent = results.didYouMean;
+          el.btnDidYouMeanTerm.onclick = () => {
+            if (el.searchInput) el.searchInput.value = results.didYouMean;
+            executeSearch(results.didYouMean);
+          };
+        }
+        const origTextEl = document.getElementById('did-you-mean-orig-text');
+        if (origTextEl) origTextEl.textContent = query;
+        if (el.btnDidYouMeanOrig) {
+          el.btnDidYouMeanOrig.onclick = () => {
+            el.searchDidYouMean.style.display = 'none';
+            executeSearch(query);
+          };
+        }
+      } else {
+        el.searchDidYouMean.style.display = 'none';
+      }
+    }
 
     // 1. Render Tracks
     if (category === 'albums' || category === 'artists') {
@@ -1127,13 +1463,20 @@ async function executeSearch(query) {
 
 let currentPlaybackRequestId = 0;
 
-async function fetchRelatedQueue(videoId) {
+async function fetchRelatedQueue(videoId, append = false) {
   if (!videoId || state.isFetchingRelated) return;
   state.isFetchingRelated = true;
   try {
     const related = await window.beamly.getRelatedTracks(videoId);
     if (Array.isArray(related) && related.length > 0) {
-      state.relatedQueue = related.filter(t => t && t.id !== videoId);
+      const filtered = related.filter(t => t && t.id && t.id !== videoId);
+      if (append && state.relatedQueue && state.relatedQueue.length > 0) {
+        const existingIds = new Set(state.relatedQueue.map(t => t.id));
+        const newItems = filtered.filter(t => !existingIds.has(t.id));
+        state.relatedQueue.push(...newItems);
+      } else {
+        state.relatedQueue = filtered;
+      }
       updateQueueUI();
     }
   } catch (err) {
@@ -1362,6 +1705,15 @@ async function playNextTrack() {
     const nextRadioTrack = state.relatedQueue.shift();
     updateQueueUI();
     showToast(`Autoplay: Playing "${nextRadioTrack.title}"`);
+
+    // Endless Radio Autoplay: If remaining radio queue is getting low (< 4 tracks), refill it in the background!
+    if (state.relatedQueue.length < 4) {
+      const nextSeed = nextRadioTrack.id || nextRadioTrack.yt_video_id;
+      if (nextSeed) {
+        fetchRelatedQueue(nextSeed, true);
+      }
+    }
+
     await playTrack(nextRadioTrack, [nextRadioTrack], 0);
   }
 }

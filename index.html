@@ -136,10 +136,15 @@
             </button>
           </div>
 
-          <!-- M3 Search Bar -->
+          <!-- M3 Search Bar with Live Suggestions & Autocomplete -->
           <div class="topbar-search-box" id="topbar-search-box">
             <svg viewBox="0 0 24 24"><path d="M10.533 1.279c-5.18 0-9.407 4.14-9.407 9.279s4.226 9.279 9.407 9.279c2.234 0 4.29-.77 5.907-2.058l4.353 4.353a1 1 0 1 0 1.414-1.414l-4.344-4.344a9.157 9.157 0 0 0 2.077-5.816c0-5.14-4.226-9.28-9.407-9.28zm-7.407 9.279c0-4.006 3.302-7.28 7.407-7.28s7.407 3.274 7.407 7.28-3.302 7.279-7.407 7.279-7.407-3.273-7.407-7.28z"/></svg>
-            <input type="text" id="main-search-input" placeholder="Search songs, albums, or artists on YouTube Music...">
+            <input type="text" id="main-search-input" placeholder="Search songs, albums, or artists on YouTube Music..." autocomplete="off">
+            <button class="search-clear-btn" id="btn-search-clear" title="Clear search" style="display: none;">✕</button>
+            <div class="search-suggestions-popover" id="search-suggestions-popover" style="display: none;">
+              <div class="suggestions-queries-list" id="suggestions-queries-list"></div>
+              <div class="suggestions-entities-list" id="suggestions-entities-list"></div>
+            </div>
           </div>
         </div>
 
@@ -196,11 +201,53 @@
         <div class="home-view" id="view-home">
           <h1 class="greeting-header" id="greeting-header">Good evening</h1>
 
-          <!-- Shelf 1: Similar to your last played (Context-Aware) -->
-          <div class="m3-shelf-section" id="home-similar-section">
-            <div class="section-title" id="home-similar-title">Similar to your last played</div>
-            <div class="m3-shelf-row" id="home-similar-row"></div>
+          <!-- Mood Filter Chips (Chill, Focus, Workout, Party, Sleep, For You) -->
+          <div class="home-mood-chips-container">
+            <div class="home-mood-chips" id="home-mood-chips">
+              <button class="mood-chip active" data-mood="all">✨ For You</button>
+              <button class="mood-chip" data-mood="Chill">☕ Chill</button>
+              <button class="mood-chip" data-mood="Focus">🎧 Focus</button>
+              <button class="mood-chip" data-mood="Workout">⚡ Workout</button>
+              <button class="mood-chip" data-mood="Party">🎉 Party</button>
+              <button class="mood-chip" data-mood="Sleep">🌙 Sleep</button>
+            </div>
           </div>
+
+          <!-- Dynamic Mood Feed Section (Loaded when a specific mood chip is active) -->
+          <div class="m3-shelf-section" id="home-mood-feed-section" style="display: none;">
+            <div class="section-title" id="home-mood-feed-title">Mood Playlists</div>
+            <div class="m3-shelf-row" id="home-mood-playlists-row" style="margin-bottom: 24px;"></div>
+            <div class="section-title" style="font-size: 1.15rem; margin-bottom: 12px;">Top Mood Songs</div>
+            <div class="tracks-table-wrapper" id="home-mood-tracks-wrapper">
+              <div class="track-table-header">
+                <div>#</div>
+                <div>Title</div>
+                <div>Album</div>
+                <div>Add</div>
+                <div style="text-align: right; padding-right: 6px;">Duration</div>
+              </div>
+              <div id="home-mood-tracks-container"></div>
+            </div>
+          </div>
+
+          <!-- Standard Personalized Home Sections Wrapper -->
+          <div id="home-standard-sections">
+            <!-- Shelf 0: Quick Picks / Based on Recent Plays -->
+            <div class="m3-shelf-section" id="home-quick-picks-section">
+              <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 12px;">
+                <div>
+                  <div class="section-title" id="home-quick-picks-title" style="margin-bottom: 2px;">Quick Picks</div>
+                  <div class="section-subtitle-text" id="home-quick-picks-subtitle" style="font-size: 0.85rem; color: var(--md-sys-color-on-surface-variant);">Start radio based on your recent listening</div>
+                </div>
+              </div>
+              <div class="m3-shelf-row" id="home-quick-picks-row"></div>
+            </div>
+
+            <!-- Shelf 1: Similar to your last played (Context-Aware) -->
+            <div class="m3-shelf-section" id="home-similar-section">
+              <div class="section-title" id="home-similar-title">Similar to your last played</div>
+              <div class="m3-shelf-row" id="home-similar-row"></div>
+            </div>
 
           <!-- Shelf 2: Top Charts -->
           <div class="m3-shelf-section" id="home-top-charts-section">
@@ -225,6 +272,7 @@
             <div class="section-title">Playlists You'll Love</div>
             <div class="m3-shelf-row" id="home-playlists-row"></div>
           </div>
+          </div> <!-- End #home-standard-sections -->
         </div>
 
         <!-- 2. Search View -->
@@ -238,6 +286,12 @@
                 <button class="filter-chip" data-search-type="albums">Albums</button>
                 <button class="filter-chip" data-search-type="artists">Artists</button>
               </div>
+            </div>
+
+            <!-- Did You Mean Typo Resilience Banner -->
+            <div class="search-did-you-mean" id="search-did-you-mean" style="display: none;">
+              <span class="did-you-mean-label">Showing results for: <button class="btn-did-you-mean-term" id="btn-did-you-mean-term">Query</button></span>
+              <span class="did-you-mean-orig-wrap">(Searched instead for: <button class="btn-did-you-mean-orig" id="btn-did-you-mean-orig">original</button>)</span>
             </div>
           </div>
 
