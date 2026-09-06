@@ -87,7 +87,7 @@ Beamly is a modern, high-performance desktop client for **YouTube Music**, engin
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/meetgharat84/Beamly.git
+   git clone https://github.com/meetgharat84/beamly.git
    cd beamly
    ```
 
