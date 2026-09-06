@@ -1655,33 +1655,106 @@ body {
 }
 
 
-/* ---------------- Sleep Timer Modal Dialog ---------------- */
+/* ---------------- Material 3 Modal Dialogs & Backdrops ---------------- */
+.m3-modal-backdrop,
 .m3-dialog-backdrop {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background-color: rgba(0, 0, 0, 0.6);
-  z-index: 200;
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  background-color: rgba(0, 0, 0, 0.7) !important;
+  backdrop-filter: blur(14px) !important;
+  -webkit-backdrop-filter: blur(14px) !important;
+  z-index: 9999 !important;
   display: none;
-  align-items: center;
-  justify-content: center;
+  align-items: center !important;
+  justify-content: center !important;
+  opacity: 0;
+  transition: opacity 0.2s cubic-bezier(0.2, 0, 0, 1);
+  pointer-events: none;
 }
 
-.m3-dialog-backdrop.open {
-  display: flex;
+.m3-modal-backdrop.open,
+.m3-modal-backdrop.active,
+.m3-dialog-backdrop.open,
+.m3-dialog-backdrop.active {
+  display: flex !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
 }
 
 .m3-dialog-card {
-  width: 360px;
+  width: 100%;
+  max-width: 480px;
   background-color: var(--md-sys-color-surface-container-high);
   border-radius: var(--md-shape-corner-extra-large);
   padding: 24px;
-  box-shadow: var(--md-sys-elevation-3);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.08);
   display: flex;
   flex-direction: column;
   gap: 16px;
+  position: relative !important;
+  z-index: 10000 !important;
+  pointer-events: auto !important;
+  transform: scale(0.97);
+  transition: transform 0.22s cubic-bezier(0.2, 0, 0, 1);
+}
+
+.m3-modal-backdrop.open .m3-dialog-card,
+.m3-modal-backdrop.active .m3-dialog-card,
+.m3-dialog-backdrop.open .m3-dialog-card,
+.m3-dialog-backdrop.active .m3-dialog-card {
+  transform: scale(1);
+}
+
+/* Add to Playlist items in modal */
+.add-to-pl-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  background-color: var(--md-sys-color-surface-container);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  transition: background-color 0.15s ease, transform 0.1s ease;
+}
+
+.add-to-pl-item:hover {
+  background-color: var(--md-sys-color-surface-container-highest);
+  transform: translateX(3px);
+}
+
+.add-to-pl-thumb {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 8px;
+  object-fit: cover;
+  aspect-ratio: 1 / 1;
+}
+
+.add-to-pl-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.add-to-pl-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--md-sys-color-on-surface);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.add-to-pl-count {
+  font-size: 0.78rem;
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .m3-dialog-title {

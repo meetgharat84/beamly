@@ -178,6 +178,7 @@ const el = {
 
   // Library View
   libraryPlaylistsGrid: document.getElementById('library-playlists-grid'),
+  btnLibraryCreatePl: document.getElementById('btn-library-create-pl'),
 
   // Offline View
   offlineStats: document.getElementById('offline-stats'),
@@ -859,35 +860,57 @@ async function loadLibraryContent() {
     if (!el.libraryPlaylistsGrid) return;
     el.libraryPlaylistsGrid.innerHTML = '';
 
-    const library = await window.beamly.getLibrary();
-
-    // Strict Authentication Enforcement: If unauthenticated, show empty state with clear Google sign-in prompt
-    if (!state.googleUser.loggedIn || (library && library.authenticated === false)) {
-      const emptyContainer = document.createElement('div');
-      emptyContainer.className = 'library-empty-state';
-      emptyContainer.innerHTML = `
-        <div class="library-empty-icon">
-          <svg viewBox="0 0 24 24" width="48" height="48"><path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
-        </div>
-        <h2 class="library-empty-title">Please Sign In with Google</h2>
-        <p class="library-empty-desc">Sign in with your Google / YouTube Music account to view your personal playlists, saved albums, and Liked Music directly in Beamly.</p>
-        <button class="m3-btn-primary library-signin-btn" id="btn-library-signin-action">
-          <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M21.35 11.1h-9.17v2.98h5.27c-.23 1.23-.94 2.27-2 2.98v2.47h3.24c1.89-1.74 2.98-4.31 2.98-7.35 0-.71-.06-1.4-.32-2.08z"/><path fill="currentColor" d="M12.18 20.48c2.7 0 4.96-.89 6.62-2.43l-3.24-2.47c-.9.6-2.04.96-3.38.96-2.6 0-4.8-1.75-5.59-4.11H3.25v2.55c1.64 3.25 5 5.5 8.93 5.5z"/><path fill="currentColor" d="M6.59 12.43c-.2-.6-.32-1.24-.32-1.9 0-.66.12-1.3.32-1.9V6.08H3.25C2.58 7.41 2.2 8.91 2.2 10.53s.38 3.12 1.05 4.45l3.34-2.55z"/><path fill="currentColor" d="M12.18 3.58c1.47 0 2.78.51 3.82 1.5l2.86-2.86C17.13.75 14.88 0 12.18 0 8.25 0 4.89 2.25 3.25 5.5l3.34 2.55c.79-2.36 2.99-4.11 5.59-4.11z"/></svg>
-          Sign In with Google
-        </button>
-      `;
-
-      emptyContainer.querySelector('#btn-library-signin-action')?.addEventListener('click', () => {
-        triggerGoogleLogin();
-      });
-
-      el.libraryPlaylistsGrid.appendChild(emptyContainer);
-      return;
+    // 1. Fetch and render user's local playlists
+    let localPlaylists = [];
+    try {
+      localPlaylists = await window.beamly.getLocalPlaylists();
+      state.localPlaylists = localPlaylists || [];
+    } catch (err) {
+      console.warn('Failed to load local playlists for library view:', err);
     }
 
-    const playlists = (library && Array.isArray(library.playlists)) ? library.playlists : [];
+    if (Array.isArray(localPlaylists) && localPlaylists.length > 0) {
+      localPlaylists.forEach(pl => {
+        const card = createPlaylistCard(pl);
+        el.libraryPlaylistsGrid.appendChild(card);
+      });
+    }
 
-    if (playlists.length === 0) {
+    // 2. Fetch authenticated YouTube Music library playlists
+    try {
+      const library = await window.beamly.getLibrary();
+      const ytPlaylists = (library && Array.isArray(library.playlists)) ? library.playlists : [];
+      ytPlaylists.forEach(pl => {
+        const card = createPlaylistCard(pl);
+        el.libraryPlaylistsGrid.appendChild(card);
+      });
+
+      // If unauthenticated, offer option to sign in alongside local playlists
+      if (!state.googleUser?.loggedIn || (library && library.authenticated === false)) {
+        const authCard = document.createElement('div');
+        authCard.className = 'library-empty-state';
+        authCard.style.cssText = 'width: 100%; max-width: 480px; margin: 16px 0; padding: 24px;';
+        authCard.innerHTML = `
+          <div class="library-empty-icon" style="margin-bottom: 8px;">
+            <svg viewBox="0 0 24 24" width="40" height="40"><path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
+          </div>
+          <h3 style="font-size: 1.1rem; margin-bottom: 6px;">Connect YouTube Music</h3>
+          <p style="font-size: 0.82rem; color: var(--md-sys-color-on-surface-variant); margin-bottom: 14px;">Sign in to also sync your YouTube Music playlists and liked tracks.</p>
+          <button class="m3-btn-primary library-signin-btn" id="btn-library-signin-action" style="padding: 8px 18px; font-size: 0.85rem;">
+            Sign In with Google
+          </button>
+        `;
+        authCard.querySelector('#btn-library-signin-action')?.addEventListener('click', () => {
+          triggerGoogleLogin();
+        });
+        el.libraryPlaylistsGrid.appendChild(authCard);
+      }
+    } catch (libErr) {
+      console.warn('Failed to load YouTube Music cloud playlists:', libErr);
+    }
+
+    // 3. If zero playlists exist anywhere, show friendly empty state
+    if (el.libraryPlaylistsGrid.children.length === 0) {
       const emptyState = document.createElement('div');
       emptyState.className = 'library-empty-state';
       emptyState.innerHTML = `
@@ -895,16 +918,16 @@ async function loadLibraryContent() {
           <svg viewBox="0 0 24 24" width="48" height="48"><path fill="currentColor" d="M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zM17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z"/></svg>
         </div>
         <h2 class="library-empty-title">Your Library is Empty</h2>
-        <p class="library-empty-desc">You don't have any playlists in your YouTube Music library yet. Create or add playlists on YouTube Music to access them here.</p>
+        <p class="library-empty-desc">Create your first playlist now to organize your favorite tracks.</p>
+        <button class="btn-m3-filled" id="btn-empty-library-create-pl" style="margin-top: 14px; padding: 10px 20px;">
+          + Create Playlist
+        </button>
       `;
+      emptyState.querySelector('#btn-empty-library-create-pl')?.addEventListener('click', () => {
+        openPlaylistModal('create');
+      });
       el.libraryPlaylistsGrid.appendChild(emptyState);
-      return;
     }
-
-    playlists.forEach(pl => {
-      const card = createPlaylistCard(pl);
-      el.libraryPlaylistsGrid.appendChild(card);
-    });
   } catch (err) {
     console.error('Failed to load library content:', err);
   }
@@ -1043,6 +1066,61 @@ function renderPlaylistView(plData) {
 // 9. Tracks Table Renderer (Search, Playlist, Offline)
 // -------------------------------------------------------------------
 
+function findTrackById(trackId) {
+  if (!trackId) return null;
+  const matchId = (t) => t && (t.id === trackId || t.yt_video_id === trackId || t.videoId === trackId);
+  if (matchId(state.currentTrack)) return state.currentTrack;
+  if (Array.isArray(state.currentSearchTracks)) {
+    const found = state.currentSearchTracks.find(matchId);
+    if (found) return found;
+  }
+  if (Array.isArray(state.currentTracklist)) {
+    const found = state.currentTracklist.find(matchId);
+    if (found) return found;
+  }
+  if (Array.isArray(state.queue)) {
+    const found = state.queue.find(matchId);
+    if (found) return found;
+  }
+  if (Array.isArray(state.relatedQueue)) {
+    const found = state.relatedQueue.find(matchId);
+    if (found) return found;
+  }
+  if (Array.isArray(state.likedTracks)) {
+    const found = state.likedTracks.find(matchId);
+    if (found) return found;
+  }
+  if (Array.isArray(state.offlineTracks)) {
+    const found = state.offlineTracks.find(matchId);
+    if (found) return found;
+  }
+  if (state.activePlaylist && Array.isArray(state.activePlaylist.tracks)) {
+    const found = state.activePlaylist.tracks.find(matchId);
+    if (found) return found;
+  }
+  return null;
+}
+
+function resolveTrackFromElement(elem) {
+  if (!elem) return null;
+  const row = elem.closest('.track-row');
+  if (row) {
+    if (row._trackData) return row._trackData;
+    const byId = findTrackById(row.dataset.trackId);
+    if (byId) return byId;
+    if (row.dataset.trackTitle) {
+      return {
+        id: row.dataset.trackId,
+        title: row.dataset.trackTitle,
+        artist: row.dataset.trackArtist,
+        album: row.querySelector('.track-row-album-col')?.textContent?.trim() || '',
+        artwork: row.querySelector('.track-row-thumb')?.src || ''
+      };
+    }
+  }
+  return null;
+}
+
 function renderTrackTable(container, tracks, tracklist = [], isOfflineView = false, append = false, startIndex = 0) {
   if (!container) return;
   if (!append) {
@@ -1071,6 +1149,10 @@ function renderTrackTable(container, tracks, tracklist = [], isOfflineView = fal
     const row = document.createElement('div');
     row.className = `track-row ${isCurrentActive ? 'active' : ''}`;
     row.dataset.trackId = trackVideoId;
+    row.dataset.index = rowIdx;
+    row.dataset.trackTitle = track.title || '';
+    row.dataset.trackArtist = track.artist || '';
+    row._trackData = track;
 
     // Column 4: Download / Delete Action Button
     let actionBtnHtml = '';
@@ -2887,19 +2969,25 @@ async function handleClearAllCache() {
 // -------------------------------------------------------------------
 
 function openPlaylistModal(defaultTab = 'create') {
+  console.log('[PLAYLIST] openPlaylistModal called with defaultTab:', defaultTab);
   if (!el.playlistModal) return;
   switchPlaylistModalTab(defaultTab);
-  el.playlistModal.classList.add('active');
-  if (defaultTab === 'create' && el.inputNewPlName) {
-    el.inputNewPlName.focus();
-  } else if (defaultTab === 'import' && el.inputImportPlUrl) {
-    el.inputImportPlUrl.focus();
-  }
+  el.playlistModal.classList.add('active', 'open');
+  el.playlistModal.style.display = 'flex';
+  setTimeout(() => {
+    if (defaultTab === 'create' && el.inputNewPlName) {
+      el.inputNewPlName.focus();
+    } else if (defaultTab === 'import' && el.inputImportPlUrl) {
+      el.inputImportPlUrl.focus();
+    }
+  }, 50);
 }
 
 function closePlaylistModal() {
+  console.log('[PLAYLIST] closePlaylistModal called');
   if (!el.playlistModal) return;
-  el.playlistModal.classList.remove('active');
+  el.playlistModal.classList.remove('active', 'open');
+  el.playlistModal.style.display = 'none';
   if (el.inputNewPlName) el.inputNewPlName.value = '';
   if (el.inputNewPlDesc) el.inputNewPlDesc.value = '';
   if (el.inputImportPlUrl) el.inputImportPlUrl.value = '';
@@ -2911,11 +2999,18 @@ function switchPlaylistModalTab(tabName) {
   const isCreate = tabName === 'create';
   if (el.tabBtnCreatePl) el.tabBtnCreatePl.classList.toggle('active', isCreate);
   if (el.tabBtnImportPl) el.tabBtnImportPl.classList.toggle('active', !isCreate);
-  if (el.tabContentCreatePl) el.tabContentCreatePl.classList.toggle('active', isCreate);
-  if (el.tabContentImportPl) el.tabContentImportPl.classList.toggle('active', !isCreate);
+  if (el.tabContentCreatePl) {
+    el.tabContentCreatePl.classList.toggle('active', isCreate);
+    el.tabContentCreatePl.style.display = isCreate ? 'block' : 'none';
+  }
+  if (el.tabContentImportPl) {
+    el.tabContentImportPl.classList.toggle('active', !isCreate);
+    el.tabContentImportPl.style.display = !isCreate ? 'block' : 'none';
+  }
 }
 
 async function handleCreateLocalPlaylist() {
+  console.log('[PLAYLIST] handleCreateLocalPlaylist triggered from button click');
   const name = el.inputNewPlName ? el.inputNewPlName.value.trim() : '';
   const desc = el.inputNewPlDesc ? el.inputNewPlDesc.value.trim() : '';
   if (!name) {
@@ -2925,15 +3020,45 @@ async function handleCreateLocalPlaylist() {
   }
 
   try {
-    console.log('[PLAYLIST] Requesting local playlist creation:', name);
+    console.log('[PLAYLIST] Creating new playlist:', name);
+    // 1. Save to local storage & electron-store database
     const res = await window.beamly.createLocalPlaylist({ name, description: desc });
     const pl = res?.playlist || res;
     if (!pl || !pl.id) {
       throw new Error(res?.error || 'Failed to create playlist');
     }
+
+    // Mirror to localStorage for instantaneous redundancy
+    try {
+      const stored = JSON.parse(localStorage.getItem('beamly_local_playlists') || '[]');
+      stored.unshift(pl);
+      localStorage.setItem('beamly_local_playlists', JSON.stringify(stored));
+    } catch (e) {
+      console.warn('localStorage playlist mirror warning:', e);
+    }
+
     showToast(`Created playlist "${name}"!`);
     closePlaylistModal();
+
+    // 2. Instantly append the new playlist to the sidebar without requiring reload
     await loadSidebarLibrary();
+
+    // 3. If a track was pending to be added to this new playlist
+    if (state.targetTrackForPlaylist) {
+      const pendingTrack = state.targetTrackForPlaylist;
+      state.targetTrackForPlaylist = null;
+      console.log(`[PLAYLIST] Automatically adding pending track "${pendingTrack.title}" to new playlist "${name}"`);
+      await window.beamly.addTrackToLocalPlaylist(pl.id, pendingTrack);
+      showToast(`Added "${pendingTrack.title}" to "${name}"!`);
+      await loadSidebarLibrary();
+    }
+
+    // 4. If currently viewing Library, refresh library grid immediately
+    if (state.currentView === 'library') {
+      loadLibraryContent();
+    }
+
+    // 5. Open newly created playlist
     openPlaylist(pl.id);
   } catch (err) {
     console.error('[PLAYLIST] Failed to create playlist:', err);
@@ -2942,6 +3067,7 @@ async function handleCreateLocalPlaylist() {
 }
 
 async function handleImportPlaylistUrl() {
+  console.log('[PLAYLIST] handleImportPlaylistUrl triggered from button click');
   const url = el.inputImportPlUrl ? el.inputImportPlUrl.value.trim() : '';
   if (!url) {
     showToast('Please enter a YouTube or YouTube Music playlist link.');
@@ -2975,6 +3101,9 @@ async function handleImportPlaylistUrl() {
     showToast(`Imported ${result.tracks.length} tracks into "${plName}"!`);
     closePlaylistModal();
     await loadSidebarLibrary();
+    if (state.currentView === 'library') {
+      loadLibraryContent();
+    }
     if (importedPl && importedPl.id) {
       openPlaylist(importedPl.id);
     }
@@ -2988,13 +3117,14 @@ async function handleImportPlaylistUrl() {
 }
 
 async function openAddToPlaylistModal(track) {
+  console.log('[PLAYLIST] openAddToPlaylistModal called for track:', track?.title);
   if (!track || !el.addToPlaylistModal) return;
   state.targetTrackForPlaylist = track;
   if (el.addToPlTrackInfo) {
     el.addToPlTrackInfo.textContent = `Adding "${track.title}" by ${track.artist}`;
   }
 
-  // Refresh playlists
+  // Refresh playlists from backend
   try {
     const localPlaylists = await window.beamly.getLocalPlaylists();
     state.localPlaylists = localPlaylists || [];
@@ -3005,7 +3135,7 @@ async function openAddToPlaylistModal(track) {
   if (el.addToPlList) {
     el.addToPlList.innerHTML = '';
     if (!state.localPlaylists || state.localPlaylists.length === 0) {
-      el.addToPlList.innerHTML = '<div style="color: var(--md-sys-color-on-surface-variant); font-size: 0.88rem; text-align: center; padding: 20px 0;">No local playlists yet. Click "+ Create New Playlist" below.</div>';
+      el.addToPlList.innerHTML = '<div style="color: var(--md-sys-color-on-surface-variant); font-size: 0.88rem; text-align: center; padding: 20px 0;">No local playlists yet. Click "+ New Playlist" below.</div>';
     } else {
       state.localPlaylists.forEach(pl => {
         const item = document.createElement('div');
@@ -3019,12 +3149,15 @@ async function openAddToPlaylistModal(track) {
           </div>
         `;
         item.addEventListener('click', async () => {
+          console.log(`[PLAYLIST] Adding track "${track.title}" to playlist "${pl.name}"`);
           try {
             await window.beamly.addTrackToLocalPlaylist(pl.id, track);
             showToast(`Added "${track.title}" to ${pl.name}!`);
             closeAddToPlaylistModal();
             await loadSidebarLibrary();
-            // If currently viewing this playlist, refresh
+            if (state.currentView === 'library') {
+              loadLibraryContent();
+            }
             if (state.currentView === 'playlist' && state.activePlaylist?.id === pl.id) {
               openPlaylist(pl.id);
             }
@@ -3038,12 +3171,15 @@ async function openAddToPlaylistModal(track) {
     }
   }
 
-  el.addToPlaylistModal.classList.add('active');
+  el.addToPlaylistModal.classList.add('active', 'open');
+  el.addToPlaylistModal.style.display = 'flex';
 }
 
 function closeAddToPlaylistModal() {
+  console.log('[PLAYLIST] closeAddToPlaylistModal called');
   if (!el.addToPlaylistModal) return;
-  el.addToPlaylistModal.classList.remove('active');
+  el.addToPlaylistModal.classList.remove('active', 'open');
+  el.addToPlaylistModal.style.display = 'none';
   state.targetTrackForPlaylist = null;
 }
 
@@ -3269,8 +3405,63 @@ function setupEventListeners() {
   el.chipPlaylists?.addEventListener('click', () => navigateTo('library'));
   el.chipAll?.addEventListener('click', () => navigateTo('library'));
 
-  // Playlist Management Modal Triggers & Actions
-  el.btnCreatePlaylistTrigger?.addEventListener('click', () => openPlaylistModal('create'));
+  // -------------------------------------------------------------------
+  // Global Event Delegation for '+' (Add to Playlist / Create Playlist)
+  // Ensures all dynamic '+' buttons (in sidebar, library, track rows, and modals)
+  // respond reliably and log clicks to the console.
+  // -------------------------------------------------------------------
+  document.addEventListener('click', (e) => {
+    // 1. '+' button on a track row -> Open 'Add to Playlist' modal
+    const trackAddBtn = e.target.closest('.t-add-btn, [data-action="add-to-pl"]');
+    if (trackAddBtn) {
+      console.log('[PLAYLIST] Track "+" button click registered (Add to Playlist):', trackAddBtn);
+      e.preventDefault();
+      e.stopPropagation();
+
+      const track = resolveTrackFromElement(trackAddBtn);
+      if (track) {
+        console.log(`[PLAYLIST] Opening Add-to-Playlist modal for track: "${track.title}" (${track.id || track.yt_video_id})`);
+        openAddToPlaylistModal(track);
+      } else {
+        console.warn('[PLAYLIST] Could not resolve track object for clicked track row');
+        showToast('Unable to identify track.');
+      }
+      return;
+    }
+
+    // 2. '+' button in sidebar, library header, or library empty state -> Open 'Create New Playlist' dialog
+    const createPlaylistBtn = e.target.closest(
+      '#btn-create-playlist-trigger, #btn-library-create-pl, #btn-empty-library-create-pl, .btn-create-playlist, [data-action="create-playlist"]'
+    );
+    if (createPlaylistBtn) {
+      console.log('[PLAYLIST] Sidebar/Library "+" button click registered (Create Playlist):', createPlaylistBtn);
+      e.preventDefault();
+      e.stopPropagation();
+      openPlaylistModal('create');
+      return;
+    }
+
+    // 3. '+ Create New Playlist' / '+ New Playlist' inside Add-to-Playlist modal
+    const addToNewPlBtn = e.target.closest('#btn-add-to-new-pl-trigger, [data-action="add-to-new-playlist"]');
+    if (addToNewPlBtn) {
+      console.log('[PLAYLIST] "+ Create New Playlist" click registered inside Add-to-Playlist modal');
+      e.preventDefault();
+      e.stopPropagation();
+      closeAddToPlaylistModal();
+      openPlaylistModal('create');
+      return;
+    }
+  }, true);
+
+  // Playlist Management Modal Direct Triggers & Actions
+  el.btnCreatePlaylistTrigger?.addEventListener('click', () => {
+    console.log('[PLAYLIST] Direct click on #btn-create-playlist-trigger');
+    openPlaylistModal('create');
+  });
+  el.btnLibraryCreatePl?.addEventListener('click', () => {
+    console.log('[PLAYLIST] Direct click on #btn-library-create-pl');
+    openPlaylistModal('create');
+  });
   el.btnClosePlaylistModal?.addEventListener('click', closePlaylistModal);
   el.btnCancelCreatePl?.addEventListener('click', closePlaylistModal);
   el.btnCancelImportPl?.addEventListener('click', closePlaylistModal);
@@ -3282,10 +3473,28 @@ function setupEventListeners() {
     if (e.target === el.playlistModal) closePlaylistModal();
   });
 
+  // Enter key support for playlist inputs
+  el.inputNewPlName?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      console.log('[PLAYLIST] Enter key pressed in inputNewPlName');
+      handleCreateLocalPlaylist();
+    }
+  });
+
+  el.inputImportPlUrl?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      console.log('[PLAYLIST] Enter key pressed in inputImportPlUrl');
+      handleImportPlaylistUrl();
+    }
+  });
+
   // Add-to-Playlist Modal Triggers & Actions
   el.btnCloseAddToPlModal?.addEventListener('click', closeAddToPlaylistModal);
   el.btnCancelAddToPl?.addEventListener('click', closeAddToPlaylistModal);
   el.btnAddToNewPlTrigger?.addEventListener('click', () => {
+    console.log('[PLAYLIST] Direct click on #btn-add-to-new-pl-trigger');
     closeAddToPlaylistModal();
     openPlaylistModal('create');
   });
