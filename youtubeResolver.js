@@ -105,26 +105,54 @@ function isPlayableVideoId(id) {
   return /^[a-zA-Z0-9_-]{11}$/.test(id);
 }
 
-// Universal thumbnail URL extractor across all youtubei.js response variations
+// Helper utility: Upgrade low-res thumbnail URLs to crisp high-res dimensions (=w540-h540 / maxresdefault)
+function getHighResThumbnail(url) {
+  if (!url || typeof url !== 'string') return url;
+
+  let transformed = url;
+
+  // 1. Google / YouTube Music Usercontent Images (lh3.googleusercontent.com, yt3.ggpht.com, etc.)
+  if (/googleusercontent\.com|ggpht\.com/i.test(transformed)) {
+    if (/=w\d+-h\d+/i.test(transformed)) {
+      transformed = transformed.replace(/=w\d+-h\d+[^?#]*/i, '=w540-h540-l90-rj');
+    } else if (/=s\d+/i.test(transformed)) {
+      transformed = transformed.replace(/=s\d+[^?#]*/i, '=w540-h540-l90-rj');
+    }
+  }
+
+  // 2. Standard YouTube Video Thumbnail URLs (default.jpg, hqdefault.jpg -> maxresdefault.jpg)
+  if (/(?:i\.ytimg\.com|img\.youtube\.com)\/vi\/[^/]+\/(?:default|hqdefault|mqdefault|sddefault)\.jpg/i.test(transformed)) {
+    transformed = transformed.replace(/(?:default|hqdefault|mqdefault|sddefault)\.jpg/i, 'maxresdefault.jpg');
+  }
+
+  return transformed;
+}
+
+// Universal thumbnail URL extractor across all youtubei.js response variations with high-res resolution
 function extractThumbnailUrl(item) {
   if (!item) return '';
+  let rawUrl = '';
+
   if (Array.isArray(item.thumbnail) && item.thumbnail.length > 0) {
-    const valid = item.thumbnail.find(t => t && t.url);
-    if (valid) return valid.url;
+    const valid = item.thumbnail.slice().reverse().find(t => t && t.url);
+    if (valid) rawUrl = valid.url;
+  } else if (Array.isArray(item.thumbnails) && item.thumbnails.length > 0) {
+    const valid = item.thumbnails.slice().reverse().find(t => t && t.url);
+    if (valid) rawUrl = valid.url;
+  } else if (item.thumbnail && Array.isArray(item.thumbnail.contents) && item.thumbnail.contents.length > 0) {
+    const valid = item.thumbnail.contents.slice().reverse().find(t => t && t.url);
+    if (valid) rawUrl = valid.url;
+  } else if (item.thumbnail && typeof item.thumbnail.url === 'string') {
+    rawUrl = item.thumbnail.url;
+  } else if (typeof item.thumbnail === 'string') {
+    rawUrl = item.thumbnail;
+  } else if (item.thumbnails && typeof item.thumbnails.url === 'string') {
+    rawUrl = item.thumbnails.url;
+  } else if (typeof item.artwork === 'string') {
+    rawUrl = item.artwork;
   }
-  if (Array.isArray(item.thumbnails) && item.thumbnails.length > 0) {
-    const valid = item.thumbnails.find(t => t && t.url);
-    if (valid) return valid.url;
-  }
-  if (item.thumbnail && Array.isArray(item.thumbnail.contents) && item.thumbnail.contents.length > 0) {
-    const valid = item.thumbnail.contents.find(t => t && t.url);
-    if (valid) return valid.url;
-  }
-  if (item.thumbnail && typeof item.thumbnail.url === 'string') return item.thumbnail.url;
-  if (typeof item.thumbnail === 'string') return item.thumbnail;
-  if (item.thumbnails && typeof item.thumbnails.url === 'string') return item.thumbnails.url;
-  if (typeof item.artwork === 'string') return item.artwork;
-  return '';
+
+  return getHighResThumbnail(rawUrl);
 }
 
 const CRITICAL_AUTH_COOKIES = ['SAPISID', '__Secure-3PAPISID', 'LOGIN_INFO', 'HSID', 'SSID', 'APISID'];
@@ -1698,6 +1726,7 @@ module.exports = {
   CLIENT_FALLBACK_CHAIN,
   isPlayableVideoId,
   extractThumbnailUrl,
+  getHighResThumbnail,
   extractItemsFromSectionNode,
   initInnertube,
   getInnertube,

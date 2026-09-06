@@ -819,10 +819,13 @@ body {
 }
 
 .m3-card-img,
-.m3-card-art {
+.m3-card-art,
+.m3-artist-art,
+.m3-card-art-wrap img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  aspect-ratio: 1 / 1;
   display: block;
 }
 
@@ -1120,6 +1123,7 @@ body {
   height: 58px;
   border-radius: var(--md-shape-corner-medium);
   object-fit: cover;
+  aspect-ratio: 1 / 1;
   flex-shrink: 0;
   background-color: var(--md-sys-color-surface-container-highest);
   box-shadow: var(--md-sys-elevation-1);
@@ -1773,6 +1777,7 @@ body {
   height: 42px;
   border-radius: 8px;
   object-fit: cover;
+  aspect-ratio: 1 / 1;
   flex-shrink: 0;
 }
 
@@ -2067,6 +2072,7 @@ body {
   height: 46px;
   border-radius: 8px;
   object-fit: cover;
+  aspect-ratio: 1 / 1;
   flex-shrink: 0;
 }
 
@@ -2120,6 +2126,7 @@ body {
   height: 38px;
   border-radius: 6px;
   object-fit: cover;
+  aspect-ratio: 1 / 1;
   flex-shrink: 0;
 }
 
@@ -3303,6 +3310,30 @@ body {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
+
+/* ---------------- High-Res Thumbnail Image Scaling ---------------- */
+.m3-card-img,
+.m3-card-art,
+.m3-artist-art,
+.m3-card-art-wrap img,
+.player-cover,
+#p-cover,
+.track-row-thumb,
+.t-thumb,
+.queue-now-playing-thumb,
+.queue-item-thumb,
+.hero-art-img,
+.library-item-thumb,
+.library-item-art,
+.add-to-pl-thumb,
+.lyrics-song-thumb,
+.suggestion-entity-thumb {
+  object-fit: cover !important;
+  aspect-ratio: 1 / 1 !important;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: auto;
+}
+
 
 
 

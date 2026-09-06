@@ -290,43 +290,77 @@ const el = {
 
 const FALLBACK_NOTE_ICON = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' fill='%23282828'%3E%3Crect width='100' height='100' rx='12' fill='%231f1f1f'/%3E%3Cpath d='M40 30v32.55c-1.59-.91-3.41-1.55-5.5-1.55-5.52 0-10 4.48-10 10s4.48 10 10 10 10-4.48 10-10V46h24v16.55c-1.59-.91-3.41-1.55-5.5-1.55-5.52 0-10 4.48-10 10s4.48 10 10 10 10-4.48 10-10V30H40z' fill='%23727272'/%3E%3C/svg%3E";
 
+// Helper utility: Upgrade low-res thumbnail URLs to crisp high-res dimensions (=w540-h540 / maxresdefault)
+function getHighResThumbnail(url) {
+  if (!url || typeof url !== 'string') return url;
+
+  let transformed = url;
+
+  // 1. Google / YouTube Music Usercontent Images (lh3.googleusercontent.com, yt3.ggpht.com, etc.)
+  if (/googleusercontent\.com|ggpht\.com/i.test(transformed)) {
+    if (/=w\d+-h\d+/i.test(transformed)) {
+      transformed = transformed.replace(/=w\d+-h\d+[^?#]*/i, '=w540-h540-l90-rj');
+    } else if (/=s\d+/i.test(transformed)) {
+      transformed = transformed.replace(/=s\d+[^?#]*/i, '=w540-h540-l90-rj');
+    }
+  }
+
+  // 2. Standard YouTube Video Thumbnail URLs (default.jpg, hqdefault.jpg -> maxresdefault.jpg)
+  if (/(?:i\.ytimg\.com|img\.youtube\.com)\/vi\/[^/]+\/(?:default|hqdefault|mqdefault|sddefault)\.jpg/i.test(transformed)) {
+    transformed = transformed.replace(/(?:default|hqdefault|mqdefault|sddefault)\.jpg/i, 'maxresdefault.jpg');
+  }
+
+  return transformed;
+}
+
+// Global image error handler with maxresdefault -> hqdefault -> note fallback
+function handleThumbnailError(img) {
+  if (!img) return;
+  if (img.src && img.src.includes('maxresdefault.jpg')) {
+    img.src = img.src.replace('maxresdefault.jpg', 'hqdefault.jpg');
+    return;
+  }
+  img.onerror = null;
+  img.src = FALLBACK_NOTE_ICON;
+}
+window.handleThumbnailError = handleThumbnailError;
+window.getHighResThumbnail = getHighResThumbnail;
+
 function getArtworkUrl(item) {
   if (!item) return FALLBACK_NOTE_ICON;
+  let rawUrl = '';
+
   if (typeof item === 'string') {
-    if (item.startsWith('http') || item.startsWith('data:') || item.startsWith('assets/')) return item;
-    return FALLBACK_NOTE_ICON;
-  }
-  // 1. Direct string properties
-  if (item.artwork && typeof item.artwork === 'string') return item.artwork;
-  if (item.thumbnail && typeof item.thumbnail === 'string') return item.thumbnail;
-  if (item.thumbnail && typeof item.thumbnail.url === 'string') return item.thumbnail.url;
-  
-  // 2. youtubei.js thumbnail objects or contents array
-  if (item.thumbnail && Array.isArray(item.thumbnail.contents) && item.thumbnail.contents.length > 0) {
-    const valid = item.thumbnail.contents.find(t => t && t.url);
-    if (valid) return valid.url;
-  }
-  if (item.thumbnails && typeof item.thumbnails.url === 'string') {
-    return item.thumbnails.url;
-  }
-  if (Array.isArray(item.thumbnails) && item.thumbnails.length > 0) {
+    if (item.startsWith('http') || item.startsWith('data:') || item.startsWith('assets/')) {
+      rawUrl = item;
+    } else {
+      return FALLBACK_NOTE_ICON;
+    }
+  } else if (item.artwork && typeof item.artwork === 'string') {
+    rawUrl = item.artwork;
+  } else if (item.thumbnail && typeof item.thumbnail === 'string') {
+    rawUrl = item.thumbnail;
+  } else if (item.thumbnail && typeof item.thumbnail.url === 'string') {
+    rawUrl = item.thumbnail.url;
+  } else if (item.thumbnail && Array.isArray(item.thumbnail.contents) && item.thumbnail.contents.length > 0) {
+    const valid = item.thumbnail.contents.slice().reverse().find(t => t && t.url);
+    if (valid) rawUrl = valid.url;
+  } else if (item.thumbnails && typeof item.thumbnails.url === 'string') {
+    rawUrl = item.thumbnails.url;
+  } else if (Array.isArray(item.thumbnails) && item.thumbnails.length > 0) {
     const valid = item.thumbnails.slice().reverse().find(t => t && (t.url || typeof t === 'string')) || item.thumbnails[0];
-    if (valid) return valid.url || valid;
-  }
-  if (item.thumbnails && Array.isArray(item.thumbnails.contents) && item.thumbnails.contents.length > 0) {
-    const valid = item.thumbnails.contents.find(t => t && t.url);
-    if (valid) return valid.url;
-  }
-
-  // 3. Album or images array
-  if (item.album && item.album.images && Array.isArray(item.album.images) && item.album.images.length > 0) {
-    return item.album.images[0].url;
-  }
-  if (Array.isArray(item.images) && item.images.length > 0) {
-    return item.images[0]?.url || FALLBACK_NOTE_ICON;
+    if (valid) rawUrl = valid.url || valid;
+  } else if (item.thumbnails && Array.isArray(item.thumbnails.contents) && item.thumbnails.contents.length > 0) {
+    const valid = item.thumbnails.contents.slice().reverse().find(t => t && t.url);
+    if (valid) rawUrl = valid.url;
+  } else if (item.album && item.album.images && Array.isArray(item.album.images) && item.album.images.length > 0) {
+    rawUrl = item.album.images[0].url;
+  } else if (Array.isArray(item.images) && item.images.length > 0) {
+    rawUrl = item.images[0]?.url || '';
   }
 
-  return 'assets/logo.png';
+  if (!rawUrl) return 'assets/logo.png';
+  return getHighResThumbnail(rawUrl);
 }
 
 function formatDuration(seconds) {
@@ -722,7 +756,7 @@ function createArtistCard(artist) {
   const artUrl = getArtworkUrl(artist);
   card.innerHTML = `
     <div class="m3-artist-art-wrap">
-      <img class="m3-artist-art" src="${escapeHtml(artUrl)}" alt="${escapeHtml(artist.name)}" loading="lazy" onerror="this.onerror=null; this.src='${FALLBACK_NOTE_ICON}';">
+      <img class="m3-artist-art" src="${escapeHtml(artUrl)}" alt="${escapeHtml(artist.name)}" loading="lazy" onerror="window.handleThumbnailError(this)">
     </div>
     <div class="m3-artist-name">${escapeHtml(artist.name)}</div>
     <div class="m3-artist-tag">Artist</div>
@@ -760,7 +794,7 @@ async function loadSidebarLibrary() {
         const artUrl = getArtworkUrl(pl);
         const plTitle = pl.name || pl.title || 'Playlist';
         item.innerHTML = `
-          <img class="library-item-thumb" src="${escapeHtml(artUrl)}" alt="Cover" loading="lazy" onerror="this.onerror=null; this.src='${FALLBACK_NOTE_ICON}';">
+          <img class="library-item-thumb" src="${escapeHtml(artUrl)}" alt="Cover" loading="lazy" onerror="window.handleThumbnailError(this)">
           <div class="library-item-info">
             <div style="display: flex; align-items: center;">
               <span class="library-item-title">${escapeHtml(plTitle)}</span>
@@ -805,7 +839,7 @@ async function loadSidebarLibrary() {
       const artUrl = getArtworkUrl(pl);
       const plTitle = pl.name || pl.title || 'Playlist';
       item.innerHTML = `
-        <img class="library-item-thumb" src="${escapeHtml(artUrl)}" alt="Cover" loading="lazy" onerror="this.onerror=null; this.src='${FALLBACK_NOTE_ICON}';">
+        <img class="library-item-thumb" src="${escapeHtml(artUrl)}" alt="Cover" loading="lazy" onerror="window.handleThumbnailError(this)">
         <div class="library-item-info">
           <span class="library-item-title">${escapeHtml(plTitle)}</span>
           <span class="library-item-sub">Playlist • ${escapeHtml(pl.owner || 'YouTube Music')}</span>
@@ -881,7 +915,7 @@ function createTrackCard(track, tracklist = [], index = 0) {
   const artUrl = getArtworkUrl(track);
   card.innerHTML = `
     <div class="m3-card-art-wrap">
-      <img class="m3-card-art" src="${escapeHtml(artUrl)}" alt="${escapeHtml(track.title)}" loading="lazy" onerror="this.onerror=null; this.src='${FALLBACK_NOTE_ICON}';">
+      <img class="m3-card-art" src="${escapeHtml(artUrl)}" alt="${escapeHtml(track.title)}" loading="lazy" onerror="window.handleThumbnailError(this)">
       <button class="m3-card-play-btn" title="Play ${escapeHtml(track.title)}">
         <svg viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20 6 4"></polygon></svg>
       </button>
@@ -904,7 +938,7 @@ function createPlaylistCard(pl) {
   const plTitle = pl.name || pl.title || 'Playlist';
   card.innerHTML = `
     <div class="m3-card-art-wrap">
-      <img class="m3-card-art" src="${escapeHtml(artUrl)}" alt="${escapeHtml(plTitle)}" loading="lazy" onerror="this.onerror=null; this.src='${FALLBACK_NOTE_ICON}';">
+      <img class="m3-card-art" src="${escapeHtml(artUrl)}" alt="${escapeHtml(plTitle)}" loading="lazy" onerror="window.handleThumbnailError(this)">
       <button class="m3-card-play-btn" title="Open ${escapeHtml(plTitle)}">
         <svg viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20 6 4"></polygon></svg>
       </button>
@@ -927,7 +961,7 @@ function createAlbumCard(album) {
   const albumTitle = album.name || album.title || 'Album';
   card.innerHTML = `
     <div class="m3-card-art-wrap">
-      <img class="m3-card-art" src="${escapeHtml(artUrl)}" alt="${escapeHtml(albumTitle)}" loading="lazy" onerror="this.onerror=null; this.src='${FALLBACK_NOTE_ICON}';">
+      <img class="m3-card-art" src="${escapeHtml(artUrl)}" alt="${escapeHtml(albumTitle)}" loading="lazy" onerror="window.handleThumbnailError(this)">
       <button class="m3-card-play-btn" title="Open ${escapeHtml(albumTitle)}">
         <svg viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20 6 4"></polygon></svg>
       </button>
@@ -974,7 +1008,7 @@ function renderPlaylistView(plData) {
   state.activePlaylist = plData;
   const artUrl = plData.artwork || (plData.id === 'local_liked_songs' ? LIKED_SONGS_COVER_SVG : getArtworkUrl(plData));
   el.plHeroArt.src = artUrl;
-  el.plHeroArt.onerror = () => { el.plHeroArt.onerror = null; el.plHeroArt.src = FALLBACK_NOTE_ICON; };
+  el.plHeroArt.onerror = () => handleThumbnailError(el.plHeroArt);
   el.plHeroTitle.textContent = plData.name || 'Playlist';
   el.plHeroDesc.textContent = plData.description || '';
   el.plCreator.textContent = plData.owner || 'Beamly';
@@ -1065,7 +1099,7 @@ function renderTrackTable(container, tracks, tracklist = [], isOfflineView = fal
         </button>
       </div>
       <div class="track-row-title-col">
-        <img class="track-row-thumb" src="${escapeHtml(getArtworkUrl(track))}" alt="Art" loading="lazy" onerror="this.onerror=null; this.src='${FALLBACK_NOTE_ICON}';">
+        <img class="track-row-thumb" src="${escapeHtml(getArtworkUrl(track))}" alt="Art" loading="lazy" onerror="window.handleThumbnailError(this)">
         <div class="track-row-meta">
           <span class="track-title-text">${escapeHtml(track.title)}</span>
           <span class="track-artist-text">${escapeHtml(track.artist)}</span>
@@ -1366,7 +1400,7 @@ function renderSearchSuggestions(data, currentQuery) {
         const artUrl = getArtworkUrl(entity);
 
         item.innerHTML = `
-          <img class="suggestion-entity-thumb ${isArtist ? 'artist-round' : ''}" src="${escapeHtml(artUrl)}" alt="Art" onerror="this.onerror=null; this.src='${FALLBACK_NOTE_ICON}';">
+          <img class="suggestion-entity-thumb ${isArtist ? 'artist-round' : ''}" src="${escapeHtml(artUrl)}" alt="Art" onerror="window.handleThumbnailError(this)">
           <div class="suggestion-entity-meta">
             <span class="suggestion-entity-title">${escapeHtml(entity.title)}</span>
             <span class="suggestion-entity-sub">${escapeHtml(entity.artist || entity.type)}</span>
@@ -1576,7 +1610,7 @@ async function playTrack(track, tracklist = [], index = 0) {
     el.pArtist.textContent = track.artist || 'Unknown Artist';
     const coverUrl = getArtworkUrl(track);
     el.pCover.src = coverUrl;
-    el.pCover.onerror = () => { el.pCover.onerror = null; el.pCover.src = FALLBACK_NOTE_ICON; };
+    el.pCover.onerror = () => handleThumbnailError(el.pCover);
     el.pStatusBadge.textContent = 'Resolving audio...';
     el.pStatusBadge.className = 'player-badge resolving';
     el.pOfflineBadge.style.display = 'none';
@@ -1865,7 +1899,7 @@ function updateQueueUI() {
     if (state.currentTrack) {
       const artUrl = getArtworkUrl(state.currentTrack);
       el.queueNowPlaying.innerHTML = `
-        <img class="queue-now-playing-thumb" src="${escapeHtml(artUrl)}" alt="Art" onerror="this.onerror=null; this.src='${FALLBACK_NOTE_ICON}';">
+        <img class="queue-now-playing-thumb" src="${escapeHtml(artUrl)}" alt="Art" onerror="window.handleThumbnailError(this)">
         <div class="queue-now-playing-info">
           <span class="queue-now-playing-title">${escapeHtml(state.currentTrack.title)}</span>
           <span class="queue-now-playing-artist">${escapeHtml(state.currentTrack.artist)}</span>
@@ -1890,7 +1924,7 @@ function updateQueueUI() {
       const itemArt = getArtworkUrl(track);
       item.innerHTML = `
         <span style="font-size: 0.78rem; font-weight: 600; color: var(--md-sys-color-on-surface-variant); width: 16px;">${idx + 1}</span>
-        <img class="queue-item-thumb" src="${escapeHtml(itemArt)}" alt="Thumb" loading="lazy" onerror="this.onerror=null; this.src='${FALLBACK_NOTE_ICON}';">
+        <img class="queue-item-thumb" src="${escapeHtml(itemArt)}" alt="Thumb" loading="lazy" onerror="window.handleThumbnailError(this)">
         <div class="queue-item-info">
           <span class="queue-item-title">${escapeHtml(track.title)}</span>
           <span class="queue-item-artist">${escapeHtml(track.artist)}</span>
@@ -1923,7 +1957,7 @@ function updateQueueUI() {
         const itemArt = getArtworkUrl(track);
         item.innerHTML = `
           <span style="font-size: 0.78rem; font-weight: 600; color: var(--md-sys-color-on-surface-variant); width: 16px;">${idx + 1}</span>
-          <img class="queue-item-thumb" src="${escapeHtml(itemArt)}" alt="Thumb" loading="lazy" onerror="this.onerror=null; this.src='${FALLBACK_NOTE_ICON}';">
+          <img class="queue-item-thumb" src="${escapeHtml(itemArt)}" alt="Thumb" loading="lazy" onerror="window.handleThumbnailError(this)">
           <div class="queue-item-info">
             <span class="queue-item-title">${escapeHtml(track.title)}</span>
             <span class="queue-item-artist">${escapeHtml(track.artist)}</span>
@@ -2367,7 +2401,7 @@ async function fetchAndDisplayLyrics(track) {
   const lArtUrl = getArtworkUrl(track);
   if (el.lyricsSongThumb) {
     el.lyricsSongThumb.src = lArtUrl;
-    el.lyricsSongThumb.onerror = () => { el.lyricsSongThumb.onerror = null; el.lyricsSongThumb.src = FALLBACK_NOTE_ICON; };
+    el.lyricsSongThumb.onerror = () => handleThumbnailError(el.lyricsSongThumb);
   }
   if (el.lyricsScrollBody) {
     el.lyricsScrollBody.innerHTML = '<div class="lyrics-msg">Searching synchronized lyrics...</div>';
@@ -2946,7 +2980,7 @@ async function openAddToPlaylistModal(track) {
         item.className = 'add-to-pl-item';
         const artUrl = getArtworkUrl(pl);
         item.innerHTML = `
-          <img class="add-to-pl-thumb" src="${escapeHtml(artUrl)}" alt="Cover" loading="lazy" onerror="this.onerror=null; this.src='${FALLBACK_NOTE_ICON}';">
+          <img class="add-to-pl-thumb" src="${escapeHtml(artUrl)}" alt="Cover" loading="lazy" onerror="window.handleThumbnailError(this)">
           <div class="add-to-pl-meta">
             <span class="add-to-pl-name">${escapeHtml(pl.name || 'Playlist')}</span>
             <span class="add-to-pl-count">${(pl.tracks || []).length} songs</span>
