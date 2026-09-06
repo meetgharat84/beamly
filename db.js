@@ -22,7 +22,9 @@ const cacheFilePath = path.join(dataDir, 'cache.json');
 let memoryCache = {
   auth_session: {},
   track_matches: {},
-  offline_tracks: {}
+  offline_tracks: {},
+  local_playlists: {},
+  last_played_track: null
 };
 
 // Safe synchronous initial load
@@ -35,7 +37,9 @@ function loadCacheFromDisk() {
         memoryCache = {
           auth_session: (parsed && typeof parsed.auth_session === 'object' && parsed.auth_session !== null) ? parsed.auth_session : {},
           track_matches: (parsed && typeof parsed.track_matches === 'object' && parsed.track_matches !== null) ? parsed.track_matches : {},
-          offline_tracks: (parsed && typeof parsed.offline_tracks === 'object' && parsed.offline_tracks !== null) ? parsed.offline_tracks : {}
+          offline_tracks: (parsed && typeof parsed.offline_tracks === 'object' && parsed.offline_tracks !== null) ? parsed.offline_tracks : {},
+          local_playlists: (parsed && typeof parsed.local_playlists === 'object' && parsed.local_playlists !== null) ? parsed.local_playlists : {},
+          last_played_track: (parsed && typeof parsed.last_played_track === 'object') ? parsed.last_played_track : null
         };
         return;
       }
@@ -48,7 +52,9 @@ function loadCacheFromDisk() {
   memoryCache = {
     auth_session: {},
     track_matches: {},
-    offline_tracks: {}
+    offline_tracks: {},
+    local_playlists: {},
+    last_played_track: null
   };
   saveCacheToDisk();
 }
@@ -251,6 +257,135 @@ function clearAllCache() {
   }
 }
 
+// ---------------- Local User Playlists ----------------
+function createLocalPlaylist(nameOrData, description = '') {
+  let name = '';
+  let desc = '';
+  let initialTracks = [];
+  let thumbnail = '';
+
+  if (typeof nameOrData === 'object' && nameOrData !== null) {
+    name = nameOrData.name || nameOrData.title || '';
+    desc = nameOrData.description || '';
+    initialTracks = Array.isArray(nameOrData.tracks) ? nameOrData.tracks : [];
+    thumbnail = nameOrData.thumbnail || nameOrData.artwork || '';
+  } else {
+    name = nameOrData || '';
+    desc = description || '';
+  }
+
+  if (!name || typeof name !== 'string' || !name.trim()) {
+    throw new Error('Playlist name cannot be empty');
+  }
+  const id = `local_pl_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const newPl = {
+    id,
+    name: name.trim(),
+    title: name.trim(),
+    description: desc ? desc.trim() : 'User created local playlist',
+    artwork: thumbnail || (initialTracks.length > 0 ? (initialTracks[0].artwork || initialTracks[0].thumbnail || '') : ''),
+    owner: 'You',
+    isLocal: true,
+    tracks: initialTracks,
+    created_at: Date.now(),
+    updated_at: Date.now()
+  };
+  if (!memoryCache.local_playlists) memoryCache.local_playlists = {};
+  memoryCache.local_playlists[id] = newPl;
+  saveCacheToDisk();
+  return newPl;
+}
+
+function getLocalPlaylists() {
+  const list = Object.values(memoryCache.local_playlists || {});
+  return list.sort((a, b) => (b.updated_at || b.created_at || 0) - (a.updated_at || a.created_at || 0));
+}
+
+function getLocalPlaylist(playlistId) {
+  if (!playlistId) return null;
+  return memoryCache.local_playlists?.[playlistId] || null;
+}
+
+function addTrackToLocalPlaylist(playlistId, track) {
+  if (!playlistId || !track) return { success: false, error: 'Invalid parameters' };
+  if (!memoryCache.local_playlists?.[playlistId]) {
+    return { success: false, error: 'Playlist not found' };
+  }
+  const pl = memoryCache.local_playlists[playlistId];
+  if (!Array.isArray(pl.tracks)) pl.tracks = [];
+
+  const trackId = track.id || track.yt_video_id;
+  if (pl.tracks.some(t => (t.id || t.yt_video_id) === trackId)) {
+    return { success: true, message: 'Track already in playlist', playlist: pl };
+  }
+
+  const cleanTrack = {
+    id: trackId,
+    yt_video_id: track.yt_video_id || trackId,
+    title: track.title || 'Track',
+    artist: track.artist || (Array.isArray(track.artists) ? track.artists.join(', ') : (track.artists || 'Various Artists')),
+    artists: Array.isArray(track.artists) ? track.artists : [track.artist || 'Various Artists'],
+    album: track.album || pl.name,
+    duration: Number(track.duration) || 0,
+    artwork: track.artwork || ''
+  };
+
+  pl.tracks.push(cleanTrack);
+  if (!pl.artwork && cleanTrack.artwork) {
+    pl.artwork = cleanTrack.artwork;
+  }
+  pl.updated_at = Date.now();
+  saveCacheToDisk();
+  return { success: true, playlist: pl };
+}
+
+function removeTrackFromLocalPlaylist(playlistId, trackId) {
+  if (!playlistId || !trackId) return { success: false, error: 'Invalid parameters' };
+  if (!memoryCache.local_playlists?.[playlistId]) {
+    return { success: false, error: 'Playlist not found' };
+  }
+  const pl = memoryCache.local_playlists[playlistId];
+  if (Array.isArray(pl.tracks)) {
+    pl.tracks = pl.tracks.filter(t => (t.id || t.yt_video_id) !== trackId);
+    if (pl.tracks.length > 0) {
+      pl.artwork = pl.tracks[0].artwork || '';
+    } else {
+      pl.artwork = '';
+    }
+  }
+  pl.updated_at = Date.now();
+  saveCacheToDisk();
+  return { success: true, playlist: pl };
+}
+
+function deleteLocalPlaylist(playlistId) {
+  if (!playlistId || !memoryCache.local_playlists?.[playlistId]) {
+    return { success: false, error: 'Playlist not found' };
+  }
+  delete memoryCache.local_playlists[playlistId];
+  saveCacheToDisk();
+  return { success: true };
+}
+
+// ---------------- Last Played Track Reference ----------------
+function saveLastPlayedTrack(track) {
+  if (!track) return;
+  memoryCache.last_played_track = {
+    id: track.id || track.yt_video_id,
+    yt_video_id: track.yt_video_id || track.id,
+    title: track.title || 'Unknown Title',
+    artist: track.artist || (Array.isArray(track.artists) ? track.artists.join(', ') : (track.artists || 'Unknown Artist')),
+    artists: Array.isArray(track.artists) ? track.artists : [track.artist || 'Unknown Artist'],
+    artwork: track.artwork || '',
+    played_at: Date.now()
+  };
+  saveCacheToDisk();
+}
+
+function getLastPlayedTrack() {
+  return memoryCache.last_played_track || null;
+}
+
 module.exports = {
   db: null,
   cacheFilePath,
@@ -269,5 +404,13 @@ module.exports = {
   deleteOfflineTrack,
   getCacheStats,
   clearTrackMatchesCache,
-  clearAllCache
+  clearAllCache,
+  createLocalPlaylist,
+  getLocalPlaylists,
+  getLocalPlaylist,
+  addTrackToLocalPlaylist,
+  removeTrackFromLocalPlaylist,
+  deleteLocalPlaylist,
+  saveLastPlayedTrack,
+  getLastPlayedTrack
 };

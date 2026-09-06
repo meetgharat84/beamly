@@ -316,9 +316,11 @@ ipcMain.handle('ytmusic:get-playlist', async (event, playlistId) => {
   }
 });
 
-ipcMain.handle('ytmusic:search', async (event, query) => {
+ipcMain.handle('ytmusic:search', async (event, args) => {
   try {
-    return await youtubeResolver.searchMusic(query);
+    const query = typeof args === 'object' && args !== null ? args.query : args;
+    const type = typeof args === 'object' && args !== null ? (args.type || 'all') : 'all';
+    return await youtubeResolver.searchMusic(query, type);
   } catch (err) {
     console.error('ytmusic:search error:', err);
     return [];
@@ -326,8 +328,119 @@ ipcMain.handle('ytmusic:search', async (event, query) => {
 });
 
 // Alias for backwards compatibility
-ipcMain.handle('search-music', async (event, query) => {
-  return await youtubeResolver.searchMusic(query);
+ipcMain.handle('search-music', async (event, args) => {
+  const query = typeof args === 'object' && args !== null ? args.query : args;
+  const type = typeof args === 'object' && args !== null ? (args.type || 'all') : 'all';
+  return await youtubeResolver.searchMusic(query, type);
+});
+
+ipcMain.handle('ytmusic:get-related', async (event, videoId) => {
+  try {
+    return await youtubeResolver.getRelatedTracks(videoId);
+  } catch (err) {
+    console.error('ytmusic:get-related error:', err);
+    return [];
+  }
+});
+
+ipcMain.handle('ytmusic:get-curated-home', async () => {
+  try {
+    return await youtubeResolver.getCuratedHome();
+  } catch (err) {
+    console.error('ytmusic:get-curated-home error:', err);
+    return {
+      similarSection: { title: 'Recommended For You', seedTrack: null, tracks: [] },
+      topCharts: [],
+      trending: [],
+      topArtists: [],
+      playlists: []
+    };
+  }
+});
+
+ipcMain.handle('ytmusic:import-playlist', async (event, urlOrId) => {
+  try {
+    return await youtubeResolver.importPlaylistFromUrl(urlOrId);
+  } catch (err) {
+    console.error('ytmusic:import-playlist error:', err);
+    throw err;
+  }
+});
+
+// ---------------- Local Playlists Management ----------------
+
+ipcMain.handle('playlists:create-local', async (event, { name, description }) => {
+  try {
+    const pl = db.createLocalPlaylist(name, description);
+    return { success: true, playlist: pl };
+  } catch (err) {
+    console.error('playlists:create-local error:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('playlists:get-local', async () => {
+  try {
+    return db.getLocalPlaylists();
+  } catch (err) {
+    console.error('playlists:get-local error:', err);
+    return [];
+  }
+});
+
+ipcMain.handle('playlists:get-local-by-id', async (event, playlistId) => {
+  try {
+    return db.getLocalPlaylist(playlistId);
+  } catch (err) {
+    console.error('playlists:get-local-by-id error:', err);
+    return null;
+  }
+});
+
+ipcMain.handle('playlists:add-track', async (event, { playlistId, track }) => {
+  try {
+    return db.addTrackToLocalPlaylist(playlistId, track);
+  } catch (err) {
+    console.error('playlists:add-track error:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('playlists:remove-track', async (event, { playlistId, trackId }) => {
+  try {
+    return db.removeTrackFromLocalPlaylist(playlistId, trackId);
+  } catch (err) {
+    console.error('playlists:remove-track error:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('playlists:delete-local', async (event, playlistId) => {
+  try {
+    return db.deleteLocalPlaylist(playlistId);
+  } catch (err) {
+    console.error('playlists:delete-local error:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+// ---------------- Playback History & Last Played Track ----------------
+
+ipcMain.handle('playback:save-last-played', async (event, track) => {
+  try {
+    db.saveLastPlayedTrack(track);
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('playback:get-last-played', async () => {
+  try {
+    return db.getLastPlayedTrack();
+  } catch (err) {
+    return null;
+  }
 });
 
 // ---------------- Offline Downloads ----------------

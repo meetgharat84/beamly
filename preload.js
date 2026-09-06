@@ -17,9 +17,24 @@ contextBridge.exposeInMainWorld('beamly', {
 
   // YouTube Music Content Discovery & Library
   getHome: () => ipcRenderer.invoke('ytmusic:get-home'),
+  getCuratedHome: () => ipcRenderer.invoke('ytmusic:get-curated-home'),
+  getRelatedTracks: (videoId) => ipcRenderer.invoke('ytmusic:get-related', videoId),
   getLibrary: () => ipcRenderer.invoke('ytmusic:get-library'),
   getPlaylist: (playlistId) => ipcRenderer.invoke('ytmusic:get-playlist', playlistId),
-  search: (query) => ipcRenderer.invoke('ytmusic:search', query),
+  importPlaylist: (urlOrId) => ipcRenderer.invoke('ytmusic:import-playlist', urlOrId),
+  search: (query, type = 'all') => ipcRenderer.invoke('ytmusic:search', { query, type }),
+
+  // Local Playlists Management
+  createLocalPlaylist: (name, description) => ipcRenderer.invoke('playlists:create-local', { name, description }),
+  getLocalPlaylists: () => ipcRenderer.invoke('playlists:get-local'),
+  getLocalPlaylist: (playlistId) => ipcRenderer.invoke('playlists:get-local-by-id', playlistId),
+  addTrackToLocalPlaylist: (playlistId, track) => ipcRenderer.invoke('playlists:add-track', { playlistId, track }),
+  removeTrackFromLocalPlaylist: (playlistId, trackId) => ipcRenderer.invoke('playlists:remove-track', { playlistId, trackId }),
+  deleteLocalPlaylist: (playlistId) => ipcRenderer.invoke('playlists:delete-local', playlistId),
+
+  // Playback History & Last Played
+  saveLastPlayedTrack: (track) => ipcRenderer.invoke('playback:save-last-played', track),
+  getLastPlayedTrack: () => ipcRenderer.invoke('playback:get-last-played'),
 
   // Audio Playback (YouTube Music Resolver + Stream Proxy)
   playTrack: (track) => ipcRenderer.invoke('play-track', track),

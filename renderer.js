@@ -45,9 +45,18 @@ const state = {
   activeLyricIndex: -1,
   isLyricsOpen: false,
 
-  // Playback Queue
+  // Playback Queue & Context-Aware Autoplay
   queue: [],
+  relatedQueue: [],
+  isFetchingRelated: false,
   isQueueOpen: false,
+
+  // Search Filters
+  searchCategory: 'all',
+
+  // Local Playlists Management
+  localPlaylists: [],
+  targetTrackForPlaylist: null,
 
   // Google Cast
   castDevices: [],
@@ -108,6 +117,7 @@ const el = {
   chipLiked: document.getElementById('chip-liked'),
   sidebarItemLiked: document.getElementById('sidebar-item-liked'),
   sidebarPlaylistsContainer: document.getElementById('sidebar-playlists-container'),
+  btnCreatePlaylistTrigger: document.getElementById('btn-create-playlist-trigger'),
 
   // Views
   viewHome: document.getElementById('view-home'),
@@ -117,17 +127,29 @@ const el = {
   viewPlaylist: document.getElementById('view-playlist'),
   mainContent: document.getElementById('main-content'),
 
-  // Home View Containers
+  // Home View Categorized Containers
   greetingHeader: document.getElementById('greeting-header'),
-  homeTopTracksTitle: document.getElementById('home-top-tracks-title'),
-  homeTopTracksRow: document.getElementById('home-top-tracks-row'),
+  homeSimilarSection: document.getElementById('home-similar-section'),
+  homeSimilarTitle: document.getElementById('home-similar-title'),
+  homeSimilarRow: document.getElementById('home-similar-row'),
+  homeTopChartsSection: document.getElementById('home-top-charts-section'),
+  homeTopChartsTitle: document.getElementById('home-top-charts-title'),
+  homeTopChartsRow: document.getElementById('home-top-charts-row'),
+  homeTrendingSection: document.getElementById('home-trending-section'),
+  homeTrendingTitle: document.getElementById('home-trending-title'),
+  homeTrendingRow: document.getElementById('home-trending-row'),
   homeTopArtistsTitle: document.getElementById('home-top-artists-title'),
   homeTopArtistsRow: document.getElementById('home-top-artists-row'),
   homePlaylistsRow: document.getElementById('home-playlists-row'),
 
-  // Search View Containers
+  // Search View Containers & Filters
   searchTitle: document.getElementById('search-title'),
+  searchTracksWrapper: document.getElementById('search-tracks-wrapper'),
   searchTracksContainer: document.getElementById('search-tracks-container'),
+  searchAlbumsSection: document.getElementById('search-albums-section'),
+  searchAlbumsRow: document.getElementById('search-albums-row'),
+  searchArtistsSection: document.getElementById('search-artists-section'),
+  searchArtistsRow: document.getElementById('search-artists-row'),
 
   // Library View
   libraryPlaylistsGrid: document.getElementById('library-playlists-grid'),
@@ -161,6 +183,7 @@ const el = {
   queueCountTag: document.getElementById('queue-count-tag'),
   queueNowPlaying: document.getElementById('queue-now-playing'),
   queueListContainer: document.getElementById('queue-list-container'),
+  queueAutoplayContainer: document.getElementById('queue-autoplay-container'),
 
   // Player Bar Controls
   pCover: document.getElementById('p-cover'),
@@ -193,6 +216,28 @@ const el = {
   pVolumeSlider: document.getElementById('p-volume-slider'),
   rCastPopover: document.getElementById('r-cast-popover'),
   rCastDevicesList: document.getElementById('r-cast-devices-list'),
+
+  // Playlist Management Modals
+  playlistModal: document.getElementById('playlist-modal'),
+  btnClosePlaylistModal: document.getElementById('btn-close-playlist-modal'),
+  tabBtnCreatePl: document.getElementById('tab-btn-create-pl'),
+  tabBtnImportPl: document.getElementById('tab-btn-import-pl'),
+  tabContentCreatePl: document.getElementById('tab-content-create-pl'),
+  tabContentImportPl: document.getElementById('tab-content-import-pl'),
+  inputNewPlName: document.getElementById('input-new-pl-name'),
+  inputNewPlDesc: document.getElementById('input-new-pl-desc'),
+  btnCancelCreatePl: document.getElementById('btn-cancel-create-pl'),
+  btnConfirmCreatePl: document.getElementById('btn-confirm-create-pl'),
+  inputImportPlUrl: document.getElementById('input-import-pl-url'),
+  btnCancelImportPl: document.getElementById('btn-cancel-import-pl'),
+  btnConfirmImportPl: document.getElementById('btn-confirm-import-pl'),
+  importPlBtnText: document.getElementById('import-pl-btn-text'),
+  addToPlaylistModal: document.getElementById('add-to-playlist-modal'),
+  btnCloseAddToPlModal: document.getElementById('btn-close-add-to-pl-modal'),
+  addToPlTrackInfo: document.getElementById('add-to-pl-track-info'),
+  addToPlList: document.getElementById('add-to-pl-list'),
+  btnAddToNewPlTrigger: document.getElementById('btn-add-to-new-pl-trigger'),
+  btnCancelAddToPl: document.getElementById('btn-cancel-add-to-pl'),
 
   // Settings Modal & Preferences
   btnTopbarSettings: document.getElementById('btn-topbar-settings'),
@@ -513,37 +558,62 @@ async function triggerUserLogout() {
 
 async function loadHomeContent() {
   try {
-    const homeData = await window.beamly.getHome();
-    if (!homeData) return;
+    const curated = await window.beamly.getCuratedHome();
+    if (!curated) return;
 
-    // 1. Render Top Tracks shelf
-    if (el.homeTopTracksRow && Array.isArray(homeData.topTracks)) {
-      el.homeTopTracksRow.innerHTML = '';
-      homeData.topTracks.forEach((track, idx) => {
-        const card = createTrackCard(track, homeData.topTracks, idx);
-        el.homeTopTracksRow.appendChild(card);
+    // 1. Render Similar to Last Played Section
+    if (el.homeSimilarSection && el.homeSimilarRow) {
+      const sim = curated.similarSection;
+      if (sim && Array.isArray(sim.tracks) && sim.tracks.length > 0) {
+        if (el.homeSimilarTitle) el.homeSimilarTitle.textContent = sim.title || 'Similar to your last played';
+        el.homeSimilarRow.innerHTML = '';
+        sim.tracks.forEach((track, idx) => {
+          const card = createTrackCard(track, sim.tracks, idx);
+          el.homeSimilarRow.appendChild(card);
+        });
+        el.homeSimilarSection.style.display = 'block';
+      } else {
+        el.homeSimilarSection.style.display = 'none';
+      }
+    }
+
+    // 2. Render Top Charts shelf
+    if (el.homeTopChartsRow && Array.isArray(curated.topCharts)) {
+      el.homeTopChartsRow.innerHTML = '';
+      curated.topCharts.forEach((track, idx) => {
+        const card = createTrackCard(track, curated.topCharts, idx);
+        el.homeTopChartsRow.appendChild(card);
       });
     }
 
-    // 2. Render Favorite Artists shelf
-    if (el.homeTopArtistsRow && Array.isArray(homeData.topArtists)) {
+    // 3. Render Trending Now shelf
+    if (el.homeTrendingRow && Array.isArray(curated.trending)) {
+      el.homeTrendingRow.innerHTML = '';
+      curated.trending.forEach((track, idx) => {
+        const card = createTrackCard(track, curated.trending, idx);
+        el.homeTrendingRow.appendChild(card);
+      });
+    }
+
+    // 4. Render Favorite Artists shelf
+    if (el.homeTopArtistsRow && Array.isArray(curated.topArtists)) {
       el.homeTopArtistsRow.innerHTML = '';
-      homeData.topArtists.forEach(artist => {
+      curated.topArtists.forEach(artist => {
         const card = createArtistCard(artist);
         el.homeTopArtistsRow.appendChild(card);
       });
     }
 
-    // 3. Render Playlists shelf
-    if (el.homePlaylistsRow && Array.isArray(homeData.playlists)) {
+    // 5. Render Playlists shelf
+    if (el.homePlaylistsRow && Array.isArray(curated.playlists)) {
       el.homePlaylistsRow.innerHTML = '';
-      homeData.playlists.forEach(pl => {
+      curated.playlists.forEach(pl => {
         const card = createPlaylistCard(pl);
         el.homePlaylistsRow.appendChild(card);
       });
     }
   } catch (err) {
-    console.error('Failed to load home content:', err);
+    console.error('Failed to load curated home content:', err);
   }
 }
 
@@ -573,38 +643,62 @@ function createArtistCard(artist) {
 async function loadSidebarLibrary() {
   try {
     if (!el.sidebarPlaylistsContainer) return;
-    const library = await window.beamly.getLibrary();
-
     el.sidebarPlaylistsContainer.innerHTML = '';
 
-    // Strict Authentication Enforcement: If unauthenticated, show sign-in prompt in sidebar
-    if (!state.googleUser.loggedIn || (library && library.authenticated === false)) {
-      const authCard = document.createElement('div');
-      authCard.className = 'sidebar-auth-empty';
-      authCard.innerHTML = `
-        <div class="sidebar-auth-icon">
-          <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
-        </div>
-        <div class="sidebar-auth-text">Sign in to view your playlists</div>
-        <button class="m3-btn-primary sidebar-auth-btn" id="btn-sidebar-auth-prompt">Sign In</button>
-      `;
-      authCard.querySelector('#btn-sidebar-auth-prompt')?.addEventListener('click', (e) => {
-        e.stopPropagation();
-        triggerGoogleLogin();
+    // 1. Fetch user's local playlists
+    let localPlaylists = [];
+    try {
+      localPlaylists = await window.beamly.getLocalPlaylists();
+      state.localPlaylists = localPlaylists || [];
+    } catch (localErr) {
+      console.warn('Failed to load local playlists:', localErr);
+    }
+
+    if (Array.isArray(localPlaylists) && localPlaylists.length > 0) {
+      localPlaylists.forEach(pl => {
+        const item = document.createElement('div');
+        item.className = 'library-item';
+        const artUrl = getArtworkUrl(pl);
+        const plTitle = pl.name || pl.title || 'Playlist';
+        item.innerHTML = `
+          <img class="library-item-thumb" src="${escapeHtml(artUrl)}" alt="Cover" loading="lazy" onerror="this.onerror=null; this.src='${FALLBACK_NOTE_ICON}';">
+          <div class="library-item-info">
+            <div style="display: flex; align-items: center;">
+              <span class="library-item-title">${escapeHtml(plTitle)}</span>
+              <span class="sidebar-item-local-tag">Local</span>
+            </div>
+            <span class="library-item-sub">${pl.tracks?.length || 0} tracks • You</span>
+          </div>
+        `;
+        item.addEventListener('click', () => openPlaylist(pl.id));
+        el.sidebarPlaylistsContainer.appendChild(item);
       });
-      el.sidebarPlaylistsContainer.appendChild(authCard);
+    }
+
+    // 2. Fetch authenticated YouTube Music library playlists
+    const library = await window.beamly.getLibrary();
+
+    if (!state.googleUser.loggedIn || (library && library.authenticated === false)) {
+      if (!localPlaylists || localPlaylists.length === 0) {
+        const authCard = document.createElement('div');
+        authCard.className = 'sidebar-auth-empty';
+        authCard.innerHTML = `
+          <div class="sidebar-auth-icon">
+            <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
+          </div>
+          <div class="sidebar-auth-text">Sign in to sync cloud playlists</div>
+          <button class="m3-btn-primary sidebar-auth-btn" id="btn-sidebar-auth-prompt">Sign In</button>
+        `;
+        authCard.querySelector('#btn-sidebar-auth-prompt')?.addEventListener('click', (e) => {
+          e.stopPropagation();
+          triggerGoogleLogin();
+        });
+        el.sidebarPlaylistsContainer.appendChild(authCard);
+      }
       return;
     }
 
     const playlists = (library && Array.isArray(library.playlists)) ? library.playlists : [];
-
-    if (playlists.length === 0) {
-      const emptyItem = document.createElement('div');
-      emptyItem.className = 'sidebar-empty-label';
-      emptyItem.textContent = 'No personal playlists found';
-      el.sidebarPlaylistsContainer.appendChild(emptyItem);
-      return;
-    }
 
     playlists.forEach(pl => {
       const item = document.createElement('div');
@@ -727,10 +821,40 @@ function createPlaylistCard(pl) {
   return card;
 }
 
+function createAlbumCard(album) {
+  const card = document.createElement('div');
+  card.className = 'm3-card';
+  const artUrl = getArtworkUrl(album);
+  const albumTitle = album.name || album.title || 'Album';
+  card.innerHTML = `
+    <div class="m3-card-art-wrap">
+      <img class="m3-card-art" src="${escapeHtml(artUrl)}" alt="${escapeHtml(albumTitle)}" loading="lazy" onerror="this.onerror=null; this.src='${FALLBACK_NOTE_ICON}';">
+      <button class="m3-card-play-btn" title="Open ${escapeHtml(albumTitle)}">
+        <svg viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20 6 4"></polygon></svg>
+      </button>
+    </div>
+    <div class="m3-card-title">${escapeHtml(albumTitle)}</div>
+    <div class="m3-card-sub">${escapeHtml(album.artist || album.year || 'Album')}</div>
+  `;
+
+  card.addEventListener('click', () => {
+    if (album.id) {
+      openPlaylist(album.id);
+    }
+  });
+
+  return card;
+}
+
 async function openPlaylist(playlistId) {
   try {
     showToast('Loading playlist...');
-    const plData = await window.beamly.getPlaylist(playlistId);
+    let plData = null;
+    if (String(playlistId).startsWith('local_')) {
+      plData = await window.beamly.getLocalPlaylist(playlistId);
+    } else {
+      plData = await window.beamly.getPlaylist(playlistId);
+    }
     if (!plData) {
       showToast('Could not load playlist.');
       return;
@@ -839,6 +963,9 @@ function renderTrackTable(container, tracks, tracklist = [], isOfflineView = fal
       <div class="track-row-album-col">${escapeHtml(track.album || 'Single')}</div>
       <div class="track-row-action-col">
         ${actionBtnHtml}
+        <button class="t-add-btn" title="Add to Playlist" data-action="add-to-pl">
+          <svg viewBox="0 0 24 24"><path fill="currentColor" d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+        </button>
         <button class="t-queue-btn" title="Add to Queue" data-action="queue">
           <svg viewBox="0 0 24 24"><path d="M14 10H2v2h12v-2zm0-4H2v2h12V6zm4 8v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zM2 16h8v-2H2v2z"/></svg>
         </button>
@@ -848,7 +975,7 @@ function renderTrackTable(container, tracks, tracklist = [], isOfflineView = fal
 
     // Row Click (Play Track)
     row.addEventListener('click', (e) => {
-      // If clicked on download, delete, or queue button, handle accordingly
+      // If clicked on download, delete, queue or add-to-pl button, handle accordingly
       const actionTarget = e.target.closest('[data-action]');
       if (actionTarget) {
         e.stopPropagation();
@@ -857,6 +984,8 @@ function renderTrackTable(container, tracks, tracklist = [], isOfflineView = fal
           downloadSingleTrack(track);
         } else if (action === 'delete') {
           deleteSingleOfflineTrack(track.id);
+        } else if (action === 'add-to-pl') {
+          openAddToPlaylistModal(track);
         } else if (action === 'queue') {
           addToQueue(track);
         }
@@ -875,34 +1004,95 @@ function renderTrackTable(container, tracks, tracklist = [], isOfflineView = fal
 // -------------------------------------------------------------------
 
 function setupSearch() {
-  if (!el.searchInput) return;
+  if (el.searchInput) {
+    el.searchInput.addEventListener('input', (e) => {
+      const query = e.target.value.trim();
+      clearTimeout(state.searchDebounceTimer);
 
-  el.searchInput.addEventListener('input', (e) => {
-    const query = e.target.value.trim();
-    clearTimeout(state.searchDebounceTimer);
-
-    if (!query) {
-      if (el.searchTracksContainer) el.searchTracksContainer.innerHTML = '';
-      if (el.searchTitle) el.searchTitle.textContent = 'Search Results';
-      return;
-    }
-
-    state.searchDebounceTimer = setTimeout(async () => {
-      if (state.currentView !== 'search') {
-        navigateTo('search');
+      if (!query) {
+        if (el.searchTracksContainer) el.searchTracksContainer.innerHTML = '';
+        if (el.searchAlbumsRow) el.searchAlbumsRow.innerHTML = '';
+        if (el.searchArtistsRow) el.searchArtistsRow.innerHTML = '';
+        if (el.searchTitle) el.searchTitle.textContent = 'Search Results';
+        return;
       }
-      executeSearch(query);
-    }, 350);
+
+      state.searchDebounceTimer = setTimeout(async () => {
+        if (state.currentView !== 'search') {
+          navigateTo('search');
+        }
+        executeSearch(query);
+      }, 350);
+    });
+  }
+
+  // Bind Search Filter Chips (All, Songs, Albums, Artists)
+  const chips = document.querySelectorAll('#search-filter-chips .filter-chip');
+  chips.forEach(chip => {
+    chip.addEventListener('click', () => {
+      chips.forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      state.searchCategory = chip.dataset.category || 'all';
+
+      const currentQuery = el.searchInput ? el.searchInput.value.trim() : '';
+      if (currentQuery) {
+        executeSearch(currentQuery);
+      }
+    });
   });
 }
 
 async function executeSearch(query) {
+  if (!query) return;
+
   try {
-    if (el.searchTitle) el.searchTitle.textContent = `Searching for "${query}" on YouTube Music...`;
-    const results = await window.beamly.search(query);
+    const category = state.searchCategory || 'all';
+    const catLabel = category === 'all' ? '' : ` (${category})`;
+    if (el.searchTitle) el.searchTitle.textContent = `Searching "${query}" on YouTube Music${catLabel}...`;
+
+    const results = await window.beamly.search({ query, type: category });
 
     if (el.searchTitle) el.searchTitle.textContent = `Search results for "${query}"`;
-    renderTrackTable(el.searchTracksContainer, results || [], results || []);
+
+    const tracks = (results && results.tracks) ? results.tracks : (Array.isArray(results) ? results : []);
+    const albums = results?.albums || [];
+    const artists = results?.artists || [];
+
+    // 1. Render Tracks
+    if (category === 'albums' || category === 'artists') {
+      if (el.searchTracksWrapper) el.searchTracksWrapper.style.display = 'none';
+    } else {
+      if (el.searchTracksWrapper) el.searchTracksWrapper.style.display = 'block';
+      renderTrackTable(el.searchTracksContainer, tracks, tracks);
+    }
+
+    // 2. Render Albums
+    if (category === 'songs' || category === 'artists' || !albums || albums.length === 0) {
+      if (el.searchAlbumsSection) el.searchAlbumsSection.style.display = 'none';
+    } else {
+      if (el.searchAlbumsSection) el.searchAlbumsSection.style.display = 'block';
+      if (el.searchAlbumsRow) {
+        el.searchAlbumsRow.innerHTML = '';
+        albums.forEach(album => {
+          const card = createAlbumCard(album);
+          el.searchAlbumsRow.appendChild(card);
+        });
+      }
+    }
+
+    // 3. Render Artists
+    if (category === 'songs' || category === 'albums' || !artists || artists.length === 0) {
+      if (el.searchArtistsSection) el.searchArtistsSection.style.display = 'none';
+    } else {
+      if (el.searchArtistsSection) el.searchArtistsSection.style.display = 'block';
+      if (el.searchArtistsRow) {
+        el.searchArtistsRow.innerHTML = '';
+        artists.forEach(artist => {
+          const card = createArtistCard(artist);
+          el.searchArtistsRow.appendChild(card);
+        });
+      }
+    }
   } catch (err) {
     console.error('Failed to perform search:', err);
     if (el.searchTitle) el.searchTitle.textContent = 'Error fetching search results';
@@ -914,6 +1104,22 @@ async function executeSearch(query) {
 // -------------------------------------------------------------------
 
 let currentPlaybackRequestId = 0;
+
+async function fetchRelatedQueue(videoId) {
+  if (!videoId || state.isFetchingRelated) return;
+  state.isFetchingRelated = true;
+  try {
+    const related = await window.beamly.getRelatedTracks(videoId);
+    if (Array.isArray(related) && related.length > 0) {
+      state.relatedQueue = related.filter(t => t && t.id !== videoId);
+      updateQueueUI();
+    }
+  } catch (err) {
+    console.warn('Failed to fetch context-aware related queue:', err.message);
+  } finally {
+    state.isFetchingRelated = false;
+  }
+}
 
 async function playTrack(track, tracklist = [], index = 0) {
   if (!track) return;
@@ -1039,6 +1245,13 @@ async function playTrack(track, tracklist = [], index = 0) {
       duration: track.duration || 0
     });
 
+    // Save last played track for curated home & fetch related autoplay queue
+    window.beamly.saveLastPlayedTrack(track).catch(() => {});
+    const vidId = track.id || track.yt_video_id;
+    if (vidId) {
+      fetchRelatedQueue(vidId);
+    }
+
   } catch (err) {
     if (thisRequestId !== currentPlaybackRequestId) return;
 
@@ -1095,7 +1308,7 @@ function updatePlayPauseIcons(playing) {
 }
 
 async function playNextTrack() {
-  // If user has manually queued tracks, play the next queued track first!
+  // 1. If user has manually queued tracks, play the next queued track first!
   if (state.queue.length > 0) {
     const nextTrack = state.queue.shift();
     updateQueueUI();
@@ -1103,17 +1316,27 @@ async function playNextTrack() {
     return;
   }
 
-  if (state.currentTracklist.length === 0) return;
+  // 2. Play next track from current playlist or album
+  if (state.currentTracklist.length > 0) {
+    let nextIndex = state.currentTrackIndex + 1;
+    if (state.isShuffle) {
+      nextIndex = Math.floor(Math.random() * state.currentTracklist.length);
+    } else if (nextIndex >= state.currentTracklist.length) {
+      nextIndex = state.isRepeat ? 0 : -1;
+    }
 
-  let nextIndex = state.currentTrackIndex + 1;
-  if (state.isShuffle) {
-    nextIndex = Math.floor(Math.random() * state.currentTracklist.length);
-  } else if (nextIndex >= state.currentTracklist.length) {
-    nextIndex = state.isRepeat ? 0 : -1;
+    if (nextIndex >= 0 && nextIndex < state.currentTracklist.length) {
+      await playTrack(state.currentTracklist[nextIndex], state.currentTracklist, nextIndex);
+      return;
+    }
   }
 
-  if (nextIndex >= 0 && nextIndex < state.currentTracklist.length) {
-    await playTrack(state.currentTracklist[nextIndex], state.currentTracklist, nextIndex);
+  // 3. Context-Aware Autoplay: Seamlessly continue with YouTube Music Radio recommendations
+  if (!state.isRepeat && state.relatedQueue && state.relatedQueue.length > 0) {
+    const nextRadioTrack = state.relatedQueue.shift();
+    updateQueueUI();
+    showToast(`Autoplay: Playing "${nextRadioTrack.title}"`);
+    await playTrack(nextRadioTrack, [nextRadioTrack], 0);
   }
 }
 
@@ -1235,6 +1458,43 @@ function updateQueueUI() {
 
       el.queueListContainer.appendChild(item);
     });
+  }
+
+  // Autoplay / Radio Queue recommendations
+  if (el.queueAutoplayContainer) {
+    if (!state.relatedQueue || state.relatedQueue.length === 0) {
+      el.queueAutoplayContainer.innerHTML = '<div style="color: var(--md-sys-color-on-surface-variant); font-size: 0.85rem; padding: 12px 0;">Autoplay radio will generate recommendations when a track plays.</div>';
+    } else {
+      el.queueAutoplayContainer.innerHTML = '';
+      state.relatedQueue.slice(0, 15).forEach((track, idx) => {
+        const item = document.createElement('div');
+        item.className = 'queue-item autoplay-item';
+        const itemArt = getArtworkUrl(track);
+        item.innerHTML = `
+          <span style="font-size: 0.78rem; font-weight: 600; color: var(--md-sys-color-on-surface-variant); width: 16px;">${idx + 1}</span>
+          <img class="queue-item-thumb" src="${escapeHtml(itemArt)}" alt="Thumb" loading="lazy" onerror="this.onerror=null; this.src='${FALLBACK_NOTE_ICON}';">
+          <div class="queue-item-info">
+            <span class="queue-item-title">${escapeHtml(track.title)}</span>
+            <span class="queue-item-artist">${escapeHtml(track.artist)}</span>
+          </div>
+          <button class="queue-item-remove-btn" title="Add to manual queue" data-action="promote-to-queue">＋</button>
+        `;
+
+        item.addEventListener('click', (e) => {
+          if (e.target.closest('[data-action="promote-to-queue"]')) {
+            e.stopPropagation();
+            state.relatedQueue.splice(idx, 1);
+            addToQueue(track);
+            return;
+          }
+          // Play directly from radio
+          state.relatedQueue.splice(idx, 1);
+          playTrack(track, [track], 0);
+        });
+
+        el.queueAutoplayContainer.appendChild(item);
+      });
+    }
   }
 }
 
@@ -1913,6 +2173,165 @@ async function handleClearAllCache() {
 }
 
 // -------------------------------------------------------------------
+// 15.1 Playlist Management Modals (Create, Import, Add-to-Playlist)
+// -------------------------------------------------------------------
+
+function openPlaylistModal(defaultTab = 'create') {
+  if (!el.playlistModal) return;
+  switchPlaylistModalTab(defaultTab);
+  el.playlistModal.classList.add('active');
+  if (defaultTab === 'create' && el.inputNewPlName) {
+    el.inputNewPlName.focus();
+  } else if (defaultTab === 'import' && el.inputImportPlUrl) {
+    el.inputImportPlUrl.focus();
+  }
+}
+
+function closePlaylistModal() {
+  if (!el.playlistModal) return;
+  el.playlistModal.classList.remove('active');
+  if (el.inputNewPlName) el.inputNewPlName.value = '';
+  if (el.inputNewPlDesc) el.inputNewPlDesc.value = '';
+  if (el.inputImportPlUrl) el.inputImportPlUrl.value = '';
+  if (el.btnConfirmImportPl) el.btnConfirmImportPl.disabled = false;
+  if (el.importPlBtnText) el.importPlBtnText.textContent = 'Import Playlist';
+}
+
+function switchPlaylistModalTab(tabName) {
+  const isCreate = tabName === 'create';
+  if (el.tabBtnCreatePl) el.tabBtnCreatePl.classList.toggle('active', isCreate);
+  if (el.tabBtnImportPl) el.tabBtnImportPl.classList.toggle('active', !isCreate);
+  if (el.tabContentCreatePl) el.tabContentCreatePl.classList.toggle('active', isCreate);
+  if (el.tabContentImportPl) el.tabContentImportPl.classList.toggle('active', !isCreate);
+}
+
+async function handleCreateLocalPlaylist() {
+  const name = el.inputNewPlName ? el.inputNewPlName.value.trim() : '';
+  const desc = el.inputNewPlDesc ? el.inputNewPlDesc.value.trim() : '';
+  if (!name) {
+    showToast('Please enter a playlist name.');
+    el.inputNewPlName?.focus();
+    return;
+  }
+
+  try {
+    const pl = await window.beamly.createLocalPlaylist({ name, description: desc });
+    showToast(`Created playlist "${name}"!`);
+    closePlaylistModal();
+    await loadSidebarLibrary();
+    if (pl && pl.id) {
+      openPlaylist(pl.id);
+    }
+  } catch (err) {
+    console.error('Failed to create playlist:', err);
+    showToast(`Could not create playlist: ${err.message}`);
+  }
+}
+
+async function handleImportPlaylistUrl() {
+  const url = el.inputImportPlUrl ? el.inputImportPlUrl.value.trim() : '';
+  if (!url) {
+    showToast('Please enter a YouTube or YouTube Music playlist link.');
+    el.inputImportPlUrl?.focus();
+    return;
+  }
+
+  try {
+    if (el.btnConfirmImportPl) el.btnConfirmImportPl.disabled = true;
+    if (el.importPlBtnText) el.importPlBtnText.textContent = 'Importing...';
+    showToast('Fetching playlist tracks from YouTube...');
+
+    const result = await window.beamly.importPlaylist(url);
+    if (!result || !result.tracks || result.tracks.length === 0) {
+      throw new Error(result?.error || 'No tracks found in playlist link.');
+    }
+
+    const plName = result.title || 'Imported Playlist';
+    const plDesc = result.description || `Imported from YouTube (${result.tracks.length} tracks)`;
+
+    const importedPl = await window.beamly.createLocalPlaylist({
+      name: plName,
+      description: plDesc,
+      tracks: result.tracks,
+      thumbnail: result.thumbnail
+    });
+
+    showToast(`Imported ${result.tracks.length} tracks into "${plName}"!`);
+    closePlaylistModal();
+    await loadSidebarLibrary();
+    if (importedPl && importedPl.id) {
+      openPlaylist(importedPl.id);
+    }
+  } catch (err) {
+    console.error('Failed to import playlist:', err);
+    showToast(`Import failed: ${err.message}`);
+  } finally {
+    if (el.btnConfirmImportPl) el.btnConfirmImportPl.disabled = false;
+    if (el.importPlBtnText) el.importPlBtnText.textContent = 'Import Playlist';
+  }
+}
+
+async function openAddToPlaylistModal(track) {
+  if (!track || !el.addToPlaylistModal) return;
+  state.targetTrackForPlaylist = track;
+  if (el.addToPlTrackInfo) {
+    el.addToPlTrackInfo.textContent = `Adding "${track.title}" by ${track.artist}`;
+  }
+
+  // Refresh playlists
+  try {
+    const localPlaylists = await window.beamly.getLocalPlaylists();
+    state.localPlaylists = localPlaylists || [];
+  } catch (err) {
+    console.warn('Error fetching local playlists:', err);
+  }
+
+  if (el.addToPlList) {
+    el.addToPlList.innerHTML = '';
+    if (!state.localPlaylists || state.localPlaylists.length === 0) {
+      el.addToPlList.innerHTML = '<div style="color: var(--md-sys-color-on-surface-variant); font-size: 0.88rem; text-align: center; padding: 20px 0;">No local playlists yet. Click "+ Create New Playlist" below.</div>';
+    } else {
+      state.localPlaylists.forEach(pl => {
+        const item = document.createElement('div');
+        item.className = 'add-to-pl-item';
+        const artUrl = getArtworkUrl(pl);
+        item.innerHTML = `
+          <img class="add-to-pl-thumb" src="${escapeHtml(artUrl)}" alt="Cover" loading="lazy" onerror="this.onerror=null; this.src='${FALLBACK_NOTE_ICON}';">
+          <div class="add-to-pl-meta">
+            <span class="add-to-pl-name">${escapeHtml(pl.name || 'Playlist')}</span>
+            <span class="add-to-pl-count">${(pl.tracks || []).length} songs</span>
+          </div>
+        `;
+        item.addEventListener('click', async () => {
+          try {
+            await window.beamly.addTrackToLocalPlaylist(pl.id, track);
+            showToast(`Added "${track.title}" to ${pl.name}!`);
+            closeAddToPlaylistModal();
+            await loadSidebarLibrary();
+            // If currently viewing this playlist, refresh
+            if (state.currentView === 'playlist' && state.activePlaylist?.id === pl.id) {
+              openPlaylist(pl.id);
+            }
+          } catch (addErr) {
+            console.error('Failed to add track to playlist:', addErr);
+            showToast('Failed to add track to playlist.');
+          }
+        });
+        el.addToPlList.appendChild(item);
+      });
+    }
+  }
+
+  el.addToPlaylistModal.classList.add('active');
+}
+
+function closeAddToPlaylistModal() {
+  if (!el.addToPlaylistModal) return;
+  el.addToPlaylistModal.classList.remove('active');
+  state.targetTrackForPlaylist = null;
+}
+
+// -------------------------------------------------------------------
 // 16. MediaSession API & Background Playback
 // -------------------------------------------------------------------
 
@@ -2036,6 +2455,30 @@ function setupEventListeners() {
   el.chipPlaylists?.addEventListener('click', () => navigateTo('library'));
   el.chipAll?.addEventListener('click', () => navigateTo('library'));
 
+  // Playlist Management Modal Triggers & Actions
+  el.btnCreatePlaylistTrigger?.addEventListener('click', () => openPlaylistModal('create'));
+  el.btnClosePlaylistModal?.addEventListener('click', closePlaylistModal);
+  el.btnCancelCreatePl?.addEventListener('click', closePlaylistModal);
+  el.btnCancelImportPl?.addEventListener('click', closePlaylistModal);
+  el.tabBtnCreatePl?.addEventListener('click', () => switchPlaylistModalTab('create'));
+  el.tabBtnImportPl?.addEventListener('click', () => switchPlaylistModalTab('import'));
+  el.btnConfirmCreatePl?.addEventListener('click', handleCreateLocalPlaylist);
+  el.btnConfirmImportPl?.addEventListener('click', handleImportPlaylistUrl);
+  el.playlistModal?.addEventListener('click', (e) => {
+    if (e.target === el.playlistModal) closePlaylistModal();
+  });
+
+  // Add-to-Playlist Modal Triggers & Actions
+  el.btnCloseAddToPlModal?.addEventListener('click', closeAddToPlaylistModal);
+  el.btnCancelAddToPl?.addEventListener('click', closeAddToPlaylistModal);
+  el.btnAddToNewPlTrigger?.addEventListener('click', () => {
+    closeAddToPlaylistModal();
+    openPlaylistModal('create');
+  });
+  el.addToPlaylistModal?.addEventListener('click', (e) => {
+    if (e.target === el.addToPlaylistModal) closeAddToPlaylistModal();
+  });
+
   // Player Controls (Non-blocking async handlers)
   el.pPlayBtn?.addEventListener('click', async (e) => {
     e.preventDefault();
@@ -2081,12 +2524,14 @@ function setupEventListeners() {
   el.rLyricsBtn?.addEventListener('click', toggleLyricsOverlay);
   el.lyricsCloseBtn?.addEventListener('click', closeLyricsOverlay);
 
-  // Close Settings, Lyrics or Queue with Escape key
+  // Close Settings, Lyrics, Queue or Playlist Modals with Escape key
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       if (state.isSettingsOpen) closeSettingsModal();
       if (state.isLyricsOpen) closeLyricsOverlay();
       if (state.isQueueOpen) closeQueueOverlay();
+      if (el.playlistModal?.classList.contains('active')) closePlaylistModal();
+      if (el.addToPlaylistModal?.classList.contains('active')) closeAddToPlaylistModal();
     }
   });
 

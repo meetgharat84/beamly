@@ -2750,3 +2750,133 @@ body {
   box-shadow: 0 4px 12px rgba(29, 185, 84, 0.35);
 }
 
+/* ---------------- Enhanced Discovery & Playlist Engine Styles ---------------- */
+.search-filter-chips {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.section-subtitle {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--md-sys-color-on-surface);
+  margin-bottom: 12px;
+}
+
+.t-actions-cell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.t-add-btn {
+  background: transparent;
+  border: none;
+  color: var(--md-sys-color-on-surface-variant);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+}
+
+.t-add-btn:hover {
+  background-color: var(--md-sys-color-surface-container-highest);
+  color: var(--md-sys-color-primary);
+  transform: scale(1.08);
+}
+
+.t-add-btn svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+
+/* Local Playlists styling */
+.add-to-pl-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  background: var(--md-sys-color-surface-container);
+  border: 1px solid transparent;
+  transition: all 0.18s ease;
+}
+
+.add-to-pl-item:hover {
+  background: var(--md-sys-color-surface-container-high);
+  border-color: var(--md-sys-color-outline-variant);
+}
+
+.add-to-pl-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 6px;
+  background: var(--md-sys-color-surface-container-highest);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--md-sys-color-primary);
+}
+
+.add-to-pl-icon svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
+.add-to-pl-name {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--md-sys-color-on-surface);
+}
+
+.add-to-pl-count {
+  font-size: 0.74rem;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.sidebar-item-local-tag {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+  text-transform: uppercase;
+  margin-left: 6px;
+  letter-spacing: 0.04em;
+}
+
+/* Autoplay Radio in Queue */
+.queue-live-badge {
+  animation: pulseOpacity 2s infinite ease-in-out;
+}
+
+@keyframes pulseOpacity {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.65; }
+}
+
+.queue-autoplay-item {
+  position: relative;
+}
+
+.queue-autoplay-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  border-radius: 2px;
+  background-color: var(--md-sys-color-primary);
+}
+

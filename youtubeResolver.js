@@ -737,73 +737,405 @@ async function getPlaylistDetails(playlistId) {
   }
 }
 
-// ---------------- Pure YouTube Music Search ----------------
-async function searchMusic(query) {
-  if (!query || !query.trim()) return [];
+// ---------------- Pure YouTube Music Search (Songs, Albums, Artists) ----------------
+async function searchMusic(queryOrOptions, type = 'all') {
+  let query = '';
+  let searchType = type;
+
+  if (typeof queryOrOptions === 'object' && queryOrOptions !== null) {
+    query = queryOrOptions.query || '';
+    searchType = queryOrOptions.type || type || 'all';
+  } else {
+    query = queryOrOptions || '';
+  }
+
+  if (!query || typeof query !== 'string' || !query.trim()) {
+    const emptyArray = [];
+    emptyArray.tracks = [];
+    emptyArray.albums = [];
+    emptyArray.artists = [];
+    return emptyArray;
+  }
 
   const trimmed = query.trim();
-  const results = [];
-  const seenIds = new Set();
+  const normalizedType = String(searchType || 'all').toLowerCase();
+  const tracks = [];
+  const albums = [];
+  const artists = [];
+  const seenTrackIds = new Set();
+  const seenAlbumIds = new Set();
+  const seenArtistIds = new Set();
 
   try {
     const yt = await getInnertube();
-    const searchRes = await yt.music.search(trimmed);
 
-    if (searchRes && searchRes.contents) {
-      for (const section of searchRes.contents) {
-        const items = section.contents || (section.type === 'MusicResponsiveListItem' ? [section] : []);
-        for (const item of items) {
-          const itemId = item.id;
-          if (itemId && isPlayableVideoId(itemId) && !seenIds.has(itemId)) {
-            seenIds.add(itemId);
-            const thumbUrl = extractThumbnailUrl(item);
-            const artistName = item.artists ? (Array.isArray(item.artists) ? item.artists.map(a => a.name).join(', ') : item.artists) : (item.author?.name || '');
-            results.push({
-              id: itemId,
-              yt_video_id: itemId,
-              title: item.title?.text || item.title?.toString() || 'Unknown Title',
-              artist: artistName,
-              artists: [artistName],
-              album: item.album?.name || 'Single',
-              duration: item.duration?.seconds || 0,
-              artwork: thumbUrl
-            });
-          }
-        }
-      }
-    }
-
-    // Supplement with standard YouTube search to guarantee minimum 10 playable results
-    if (results.length < 10) {
+    // 1. If type is 'all' or 'songs' or 'song'
+    if (normalizedType === 'all' || normalizedType === 'songs' || normalizedType === 'song') {
       try {
-        const general = await yt.search(trimmed, { type: 'video' });
-        if (general && general.videos) {
-          for (const v of general.videos) {
-            if (v.id && isPlayableVideoId(v.id) && !seenIds.has(v.id)) {
-              seenIds.add(v.id);
-              results.push({
-                id: v.id,
-                yt_video_id: v.id,
-                title: v.title?.text || v.title?.toString() || '',
-                artist: v.author?.name || '',
-                artists: [v.author?.name || ''],
-                album: 'YouTube Video',
-                duration: v.duration?.seconds || 0,
-                artwork: extractThumbnailUrl(v)
-              });
+        const songRes = await yt.music.search(trimmed, { type: 'song' });
+        if (songRes && Array.isArray(songRes.contents)) {
+          for (const section of songRes.contents) {
+            const items = Array.isArray(section.contents) ? section.contents : (Array.isArray(section.items) ? section.items : [section]);
+            for (const item of items) {
+              const itemId = item.id;
+              if (itemId && isPlayableVideoId(itemId) && !seenTrackIds.has(itemId)) {
+                seenTrackIds.add(itemId);
+                const thumbUrl = extractThumbnailUrl(item);
+                const artistName = item.artists ? (Array.isArray(item.artists) ? item.artists.map(a => a.name || a.text || a).join(', ') : (item.artists.name || item.artists)) : (item.author?.name || '');
+                tracks.push({
+                  id: itemId,
+                  yt_video_id: itemId,
+                  title: item.title?.text || item.title?.toString() || 'Unknown Title',
+                  artist: artistName || 'Unknown Artist',
+                  artists: artistName ? [artistName] : [],
+                  album: item.album?.name || 'Single',
+                  duration: item.duration?.seconds || (typeof item.duration === 'number' ? item.duration : 0),
+                  artwork: thumbUrl,
+                  isOfficialSong: true
+                });
+              }
             }
           }
         }
-      } catch (gErr) {
-        console.warn('General video search supplement skipped:', gErr.message);
+      } catch (songErr) {
+        console.warn('yt.music.search for songs error:', songErr.message);
       }
     }
 
-    return results;
+    // 2. If type is 'all' or 'albums' or 'album'
+    if (normalizedType === 'all' || normalizedType === 'albums' || normalizedType === 'album') {
+      try {
+        const albumRes = await yt.music.search(trimmed, { type: 'album' });
+        if (albumRes && Array.isArray(albumRes.contents)) {
+          for (const section of albumRes.contents) {
+            const items = Array.isArray(section.contents) ? section.contents : (Array.isArray(section.items) ? section.items : [section]);
+            for (const item of items) {
+              const albumId = item.id || item.playlist_id;
+              if (albumId && !seenAlbumIds.has(albumId)) {
+                seenAlbumIds.add(albumId);
+                const thumbUrl = extractThumbnailUrl(item);
+                const artistName = item.artists ? (Array.isArray(item.artists) ? item.artists.map(a => a.name || a.text || a).join(', ') : item.artists) : (item.author?.name || '');
+                albums.push({
+                  id: albumId,
+                  name: item.title?.text || item.title?.toString() || 'Album',
+                  title: item.title?.text || item.title?.toString() || 'Album',
+                  artist: artistName || '',
+                  year: item.year?.text || item.year || '',
+                  artwork: thumbUrl,
+                  type: 'album'
+                });
+              }
+            }
+          }
+        }
+      } catch (albumErr) {
+        console.warn('yt.music.search for albums error:', albumErr.message);
+      }
+    }
+
+    // 3. If type is 'all' or 'artists' or 'artist'
+    if (normalizedType === 'all' || normalizedType === 'artists' || normalizedType === 'artist') {
+      try {
+        const artistRes = await yt.music.search(trimmed, { type: 'artist' });
+        if (artistRes && Array.isArray(artistRes.contents)) {
+          for (const section of artistRes.contents) {
+            const items = Array.isArray(section.contents) ? section.contents : (Array.isArray(section.items) ? section.items : [section]);
+            for (const item of items) {
+              const artistId = item.id || item.channel_id;
+              if (artistId && !seenArtistIds.has(artistId)) {
+                seenArtistIds.add(artistId);
+                const thumbUrl = extractThumbnailUrl(item);
+                const name = item.name?.text || item.name?.toString() || item.title?.text || item.title?.toString() || 'Artist';
+                artists.push({
+                  id: artistId,
+                  name: name,
+                  title: name,
+                  subscribers: item.subscribers?.text || '',
+                  artwork: thumbUrl,
+                  type: 'artist'
+                });
+              }
+            }
+          }
+        }
+      } catch (artistErr) {
+        console.warn('yt.music.search for artists error:', artistErr.message);
+      }
+    }
+
+    // Fallback: If no tracks were populated, use general yt.music.search
+    if (tracks.length === 0 && (normalizedType === 'all' || normalizedType === 'songs')) {
+      try {
+        const generalRes = await yt.music.search(trimmed);
+        if (generalRes && generalRes.contents) {
+          for (const section of generalRes.contents) {
+            const items = section.contents || (section.type === 'MusicResponsiveListItem' ? [section] : []);
+            for (const item of items) {
+              const itemId = item.id;
+              if (itemId && isPlayableVideoId(itemId) && !seenTrackIds.has(itemId)) {
+                seenTrackIds.add(itemId);
+                const thumbUrl = extractThumbnailUrl(item);
+                const artistName = item.artists ? (Array.isArray(item.artists) ? item.artists.map(a => a.name).join(', ') : item.artists) : (item.author?.name || '');
+                tracks.push({
+                  id: itemId,
+                  yt_video_id: itemId,
+                  title: item.title?.text || item.title?.toString() || 'Unknown Title',
+                  artist: artistName || 'Unknown Artist',
+                  artists: artistName ? [artistName] : [],
+                  album: item.album?.name || 'Single',
+                  duration: item.duration?.seconds || 0,
+                  artwork: thumbUrl
+                });
+              }
+            }
+          }
+        }
+      } catch (genErr) {
+        console.warn('General yt.music.search fallback error:', genErr.message);
+      }
+    }
+
+    // Array-like wrapper for backwards compatibility
+    const responseArray = [...tracks];
+    responseArray.tracks = tracks;
+    responseArray.albums = albums;
+    responseArray.artists = artists;
+    return responseArray;
   } catch (err) {
     console.error('searchMusic error:', err);
+    const emptyArray = [];
+    emptyArray.tracks = [];
+    emptyArray.albums = [];
+    emptyArray.artists = [];
+    return emptyArray;
+  }
+}
+
+// ---------------- Context-Aware Related Radio Queue ----------------
+async function getRelatedTracks(videoId) {
+  if (!videoId || !isPlayableVideoId(videoId)) return [];
+
+  try {
+    const yt = await getInnertube();
+    const radioRes = await yt.actions.execute('/next', {
+      client: 'YTMUSIC',
+      videoId: videoId,
+      playlistId: 'RDAMVM' + videoId
+    });
+
+    const queueRenderer = radioRes.data?.contents?.singleColumnMusicWatchNextResultsRenderer?.tabbedRenderer?.watchNextTabbedResultsRenderer?.tabs?.[0]?.tabRenderer?.content?.musicQueueRenderer;
+    const items = queueRenderer?.content?.playlistPanelRenderer?.contents || [];
+    const related = [];
+    const seen = new Set([videoId]);
+
+    for (const item of items) {
+      const v = item.playlistPanelVideoRenderer;
+      if (v && v.videoId && isPlayableVideoId(v.videoId) && !seen.has(v.videoId)) {
+        seen.add(v.videoId);
+        const title = v.title?.runs?.[0]?.text || v.title?.text || 'Track';
+        const artist = v.shortBylineText?.runs?.[0]?.text || v.longBylineText?.runs?.[0]?.text || 'Artist';
+        const album = v.longBylineText?.runs?.[2]?.text || 'YouTube Music';
+
+        let durationSec = 0;
+        const durationStr = v.lengthText?.runs?.[0]?.text || '';
+        if (durationStr) {
+          const parts = durationStr.split(':').map(Number);
+          if (parts.length === 2) durationSec = (parts[0] * 60) + parts[1];
+          else if (parts.length === 3) durationSec = (parts[0] * 3600) + (parts[1] * 60) + parts[2];
+        }
+
+        const thumb = v.thumbnail?.thumbnails?.slice(-1)[0]?.url || (v.thumbnail?.thumbnails?.[0]?.url || '');
+
+        related.push({
+          id: v.videoId,
+          yt_video_id: v.videoId,
+          title,
+          artist,
+          artists: [artist],
+          album,
+          duration: durationSec,
+          artwork: thumb,
+          isRelatedAutoplay: true
+        });
+      }
+    }
+
+    return related;
+  } catch (err) {
+    console.error(`getRelatedTracks error for ${videoId}:`, err.message);
     return [];
   }
+}
+
+// ---------------- Curated Home Recommendations ----------------
+async function getCuratedHome() {
+  try {
+    const yt = await getInnertube();
+    const lastPlayed = db.getLastPlayedTrack();
+
+    let similarSection = {
+      title: lastPlayed ? `Similar to "${lastPlayed.title}"` : 'Recommended For You',
+      seedTrack: lastPlayed || null,
+      tracks: []
+    };
+
+    // 1. Fetch Similar to Last Played (or seed track)
+    const seedVideoId = lastPlayed?.id || lastPlayed?.yt_video_id;
+    if (seedVideoId && isPlayableVideoId(seedVideoId)) {
+      try {
+        const related = await getRelatedTracks(seedVideoId);
+        similarSection.tracks = related.slice(0, 20);
+      } catch (relErr) {
+        console.warn('Similar to last played fetch error:', relErr.message);
+      }
+    }
+
+    // 2. Fetch Top Charts & Trending
+    let topChartsTracks = [];
+    let trendingTracks = [];
+    let topArtists = [];
+    let curatedPlaylists = [];
+
+    // Explore: Trending
+    try {
+      const explore = await yt.music.getExplore();
+      if (explore && Array.isArray(explore.sections)) {
+        for (const sec of explore.sections) {
+          const title = (sec.title?.text || sec.header?.title?.text || '').toLowerCase();
+          const items = sec.contents || sec.items || [];
+          if (title.includes('trending') || title.includes('hot')) {
+            for (const item of items) {
+              if (item.id && isPlayableVideoId(item.id)) {
+                const artistStr = item.artists ? (Array.isArray(item.artists) ? item.artists.map(a => a.name).join(', ') : item.artists) : (item.author?.name || '');
+                trendingTracks.push({
+                  id: item.id,
+                  yt_video_id: item.id,
+                  title: item.title?.text || item.title?.toString() || 'Track',
+                  artist: artistStr,
+                  artists: [artistStr],
+                  album: item.album?.name || 'Trending',
+                  duration: item.duration?.seconds || 0,
+                  artwork: extractThumbnailUrl(item)
+                });
+              }
+            }
+          }
+        }
+      }
+    } catch (expErr) {
+      console.warn('Explore fetch in curated home:', expErr.message);
+    }
+
+    // Home feed: Charts & Top tracks
+    try {
+      const home = await yt.music.getHomeFeed();
+      if (home && home.sections) {
+        for (const sec of home.sections) {
+          const secTitle = sec.title?.text || sec.header?.title?.text || '';
+          const items = sec.contents || [];
+          for (const item of items) {
+            const thumb = extractThumbnailUrl(item);
+            const isSong = item.id && isPlayableVideoId(item.id);
+            if (isSong) {
+              const artistStr = item.artists ? (Array.isArray(item.artists) ? item.artists.map(a => a.name).join(', ') : item.artists) : (item.author?.name || '');
+              const trackObj = {
+                id: item.id,
+                yt_video_id: item.id,
+                title: item.title?.text || item.title?.toString() || 'Track',
+                artist: artistStr,
+                artists: [artistStr],
+                album: item.album?.name || 'Top Hit',
+                duration: item.duration?.seconds || 0,
+                artwork: thumb
+              };
+              if (topChartsTracks.length < 24) {
+                topChartsTracks.push(trackObj);
+              }
+              if (artistStr && !topArtists.some(a => a.name === artistStr)) {
+                topArtists.push({ name: artistStr, artwork: thumb });
+              }
+            } else if (item.id && !item.id.startsWith('MPREb_')) {
+              if (!curatedPlaylists.some(p => p.id === item.id)) {
+                curatedPlaylists.push({
+                  id: item.id,
+                  name: item.title?.text || item.title?.toString() || 'Playlist',
+                  description: secTitle,
+                  artwork: thumb,
+                  owner: 'YouTube Music'
+                });
+              }
+            }
+          }
+        }
+      }
+    } catch (homeErr) {
+      console.warn('Home feed fetch in curated home:', homeErr.message);
+    }
+
+    // If similarSection had no seed track, seed from the first top chart track
+    if (similarSection.tracks.length === 0 && topChartsTracks.length > 0) {
+      const seed = topChartsTracks[0];
+      similarSection.title = `Similar to "${seed.title}"`;
+      similarSection.seedTrack = seed;
+      try {
+        const related = await getRelatedTracks(seed.id);
+        similarSection.tracks = related.slice(0, 20);
+      } catch (e) {}
+    }
+
+    // Fallback if trending was empty
+    if (trendingTracks.length === 0) {
+      trendingTracks = topChartsTracks.slice(10, 24);
+    }
+
+    return {
+      similarSection,
+      topCharts: topChartsTracks.slice(0, 20),
+      trending: trendingTracks.slice(0, 20),
+      topArtists: topArtists.slice(0, 15),
+      playlists: curatedPlaylists.slice(0, 20)
+    };
+  } catch (err) {
+    console.error('getCuratedHome error:', err);
+    return {
+      similarSection: { title: 'Recommended For You', seedTrack: null, tracks: [] },
+      topCharts: [],
+      trending: [],
+      topArtists: [],
+      playlists: []
+    };
+  }
+}
+
+// ---------------- Import Playlist From YouTube / YouTube Music URL ----------------
+function extractPlaylistIdFromUrl(urlOrId) {
+  if (!urlOrId || typeof urlOrId !== 'string') return null;
+  const str = urlOrId.trim();
+
+  // Pattern 1: URL with ?list= or &list=
+  const listMatch = str.match(/[?&]list=([a-zA-Z0-9_-]+)/);
+  if (listMatch && listMatch[1]) return listMatch[1];
+
+  // Pattern 2: Raw playlist ID
+  if (/^[a-zA-Z0-9_-]{10,}$/.test(str)) {
+    return str;
+  }
+
+  return null;
+}
+
+async function importPlaylistFromUrl(urlOrId) {
+  const playlistId = extractPlaylistIdFromUrl(urlOrId);
+  if (!playlistId) {
+    throw new Error('Invalid YouTube or YouTube Music playlist link or ID');
+  }
+
+  const details = await getPlaylistDetails(playlistId);
+  if (!details) {
+    throw new Error(`Could not load playlist "${playlistId}". Please check that the playlist is public or unlisted.`);
+  }
+
+  return details;
 }
 
 // ---------------- Direct Audio Stream Resolution ----------------
@@ -903,5 +1235,9 @@ module.exports = {
   getLibrary,
   getPlaylistDetails,
   searchMusic,
+  getRelatedTracks,
+  getCuratedHome,
+  extractPlaylistIdFromUrl,
+  importPlaylistFromUrl,
   resolveTrackAudio
 };

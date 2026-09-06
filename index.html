@@ -91,6 +91,9 @@
             </svg>
             <span>Playlists & Mixes</span>
           </button>
+          <button class="circle-nav-btn" id="btn-create-playlist-trigger" title="Create or Import Playlist" style="width: 28px; height: 28px; border: none; background: var(--md-sys-color-surface-container-high); color: var(--md-sys-color-on-surface);">
+            <svg viewBox="0 0 24 24" style="width: 18px; height: 18px; fill: currentColor;"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+          </button>
         </div>
 
         <div class="filter-chips">
@@ -193,20 +196,32 @@
         <div class="home-view" id="view-home">
           <h1 class="greeting-header" id="greeting-header">Good evening</h1>
 
-          <!-- Shelf: Quick Picks & Hits (YouTube Music) -->
-          <div class="m3-shelf-section">
-            <div class="section-title" id="home-top-tracks-title">Trending & Quick Picks</div>
-            <div class="m3-shelf-row" id="home-top-tracks-row"></div>
+          <!-- Shelf 1: Similar to your last played (Context-Aware) -->
+          <div class="m3-shelf-section" id="home-similar-section">
+            <div class="section-title" id="home-similar-title">Similar to your last played</div>
+            <div class="m3-shelf-row" id="home-similar-row"></div>
           </div>
 
-          <!-- Shelf: Artists & Channels -->
-          <div class="m3-shelf-section">
+          <!-- Shelf 2: Top Charts -->
+          <div class="m3-shelf-section" id="home-top-charts-section">
+            <div class="section-title" id="home-top-charts-title">Top Charts</div>
+            <div class="m3-shelf-row" id="home-top-charts-row"></div>
+          </div>
+
+          <!-- Shelf 3: Trending Now -->
+          <div class="m3-shelf-section" id="home-trending-section">
+            <div class="section-title" id="home-trending-title">Trending Now</div>
+            <div class="m3-shelf-row" id="home-trending-row"></div>
+          </div>
+
+          <!-- Shelf 4: Popular Artists -->
+          <div class="m3-shelf-section" id="home-top-artists-section">
             <div class="section-title" id="home-top-artists-title">Popular Artists</div>
             <div class="m3-shelf-row" id="home-top-artists-row"></div>
           </div>
 
-          <!-- Shelf: Playlists & Mixes -->
-          <div class="m3-shelf-section">
+          <!-- Shelf 5: Playlists You'll Love -->
+          <div class="m3-shelf-section" id="home-playlists-section">
             <div class="section-title">Playlists You'll Love</div>
             <div class="m3-shelf-row" id="home-playlists-row"></div>
           </div>
@@ -214,13 +229,37 @@
 
         <!-- 2. Search View -->
         <div class="search-view" id="view-search" style="display: none;">
-          <h2 class="section-title" id="search-title">Search Results</h2>
-          <div class="tracks-table-wrapper">
+          <div class="search-header-row" style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+              <h2 class="section-title" id="search-title" style="margin-bottom: 0;">Search Results</h2>
+              <div class="filter-chips search-filter-chips" id="search-filter-chips">
+                <button class="filter-chip active" data-search-type="all">All</button>
+                <button class="filter-chip" data-search-type="songs">Songs</button>
+                <button class="filter-chip" data-search-type="albums">Albums</button>
+                <button class="filter-chip" data-search-type="artists">Artists</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Albums Shelf (if searching albums or all) -->
+          <div id="search-albums-section" style="display: none; margin-bottom: 28px;">
+            <div class="section-title" style="font-size: 1.15rem; margin-bottom: 12px;">Albums</div>
+            <div class="m3-shelf-row" id="search-albums-row"></div>
+          </div>
+
+          <!-- Artists Shelf (if searching artists or all) -->
+          <div id="search-artists-section" style="display: none; margin-bottom: 28px;">
+            <div class="section-title" style="font-size: 1.15rem; margin-bottom: 12px;">Artists</div>
+            <div class="m3-shelf-row" id="search-artists-row"></div>
+          </div>
+
+          <!-- Tracks Table -->
+          <div class="tracks-table-wrapper" id="search-tracks-wrapper">
             <div class="track-table-header">
               <div>#</div>
               <div>Title</div>
               <div>Album</div>
-              <div>Save</div>
+              <div>Add</div>
               <div style="text-align: right; padding-right: 6px;">Duration</div>
             </div>
             <div id="search-tracks-container"></div>
@@ -333,9 +372,22 @@
             <div style="color: var(--md-sys-color-on-surface-variant); font-size: 0.88rem; padding: 12px 0;">No track playing</div>
           </div>
 
-          <div class="queue-section-label" style="margin-top: 24px;">Next In Queue</div>
+          <div class="queue-section-label" style="margin-top: 24px; display: flex; justify-content: space-between; align-items: center;">
+            <span>Up Next (User Queue)</span>
+          </div>
           <div class="queue-list" id="queue-list-container">
-            <div style="color: var(--md-sys-color-on-surface-variant); font-size: 0.85rem; padding: 12px 0;">Queue is empty. Click "+ Queue" on any track.</div>
+            <div style="color: var(--md-sys-color-on-surface-variant); font-size: 0.85rem; padding: 12px 0;">Queue is empty. Use the track menu to queue songs.</div>
+          </div>
+
+          <!-- Context-Aware Autoplay Radio Queue Section -->
+          <div class="queue-section-label" id="queue-autoplay-header" style="margin-top: 24px; display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span>Autoplay Radio</span>
+              <span class="queue-live-badge" style="background: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container); font-size: 0.72rem; padding: 2px 8px; border-radius: 9999px; font-weight: 700; text-transform: uppercase;">Similar Tracks</span>
+            </div>
+          </div>
+          <div class="queue-list" id="queue-autoplay-container">
+            <div style="color: var(--md-sys-color-on-surface-variant); font-size: 0.85rem; padding: 12px 0;">Play any track to generate related radio queue.</div>
           </div>
         </div>
       </div>
@@ -641,6 +693,69 @@
       <!-- Modal Footer -->
       <div class="settings-footer">
         <button class="btn-settings-primary" id="btn-settings-done">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create / Import Playlist Modal -->
+  <div class="m3-modal-backdrop" id="playlist-modal" style="display: none;">
+    <div class="m3-dialog-card" style="max-width: 480px;">
+      <div class="m3-dialog-header">
+        <div class="m3-dialog-title" id="playlist-modal-title">Playlist Management</div>
+        <button class="lyrics-close-btn" id="btn-close-playlist-modal" title="Close">✕</button>
+      </div>
+      <div class="segmented-control" id="playlist-modal-tabs" style="margin: 0 24px 16px 24px;">
+        <button class="seg-btn active" id="tab-btn-create-pl">Create New</button>
+        <button class="seg-btn" id="tab-btn-import-pl">Import Link</button>
+      </div>
+      
+      <!-- Tab 1: Create Local Playlist -->
+      <div class="m3-dialog-content" id="tab-content-create-pl" style="padding: 0 24px 20px 24px;">
+        <label style="font-size: 0.82rem; font-weight: 600; color: var(--md-sys-color-on-surface-variant); display: block; margin-bottom: 6px;">Playlist Name</label>
+        <input type="text" id="input-new-pl-name" placeholder="e.g. Late Night Drives, Workout Hits" style="width: 100%; box-sizing: border-box; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--md-sys-color-outline-variant); background: var(--md-sys-color-surface-container); color: var(--md-sys-color-on-surface); font-size: 0.9rem; outline: none;">
+        
+        <label style="font-size: 0.82rem; font-weight: 600; color: var(--md-sys-color-on-surface-variant); display: block; margin-top: 14px; margin-bottom: 6px;">Description (Optional)</label>
+        <input type="text" id="input-new-pl-desc" placeholder="Add an optional description" style="width: 100%; box-sizing: border-box; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--md-sys-color-outline-variant); background: var(--md-sys-color-surface-container); color: var(--md-sys-color-on-surface); font-size: 0.9rem; outline: none;">
+        
+        <div style="margin-top: 24px; display: flex; justify-content: flex-end; gap: 10px;">
+          <button class="btn-m3-text" id="btn-cancel-create-pl">Cancel</button>
+          <button class="btn-m3-filled" id="btn-confirm-create-pl">Create Playlist</button>
+        </div>
+      </div>
+
+      <!-- Tab 2: Import from YouTube / YouTube Music URL -->
+      <div class="m3-dialog-content" id="tab-content-import-pl" style="display: none; padding: 0 24px 20px 24px;">
+        <label style="font-size: 0.82rem; font-weight: 600; color: var(--md-sys-color-on-surface-variant); display: block; margin-bottom: 6px;">YouTube / YouTube Music Playlist Link</label>
+        <input type="text" id="input-import-pl-url" placeholder="https://music.youtube.com/playlist?list=..." style="width: 100%; box-sizing: border-box; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--md-sys-color-outline-variant); background: var(--md-sys-color-surface-container); color: var(--md-sys-color-on-surface); font-size: 0.9rem; outline: none;">
+        <p style="font-size: 0.8rem; color: var(--md-sys-color-on-surface-variant); margin-top: 8px; line-height: 1.4;">
+          Paste any YouTube or YouTube Music playlist URL to immediately fetch all its tracks into your library and play queue.
+        </p>
+        <div style="margin-top: 24px; display: flex; justify-content: flex-end; gap: 10px;">
+          <button class="btn-m3-text" id="btn-cancel-import-pl">Cancel</button>
+          <button class="btn-m3-filled" id="btn-confirm-import-pl">
+            <span id="import-pl-btn-text">Import & Play</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add to Playlist Selection Modal -->
+  <div class="m3-modal-backdrop" id="add-to-playlist-modal" style="display: none;">
+    <div class="m3-dialog-card" style="max-width: 400px;">
+      <div class="m3-dialog-header">
+        <div class="m3-dialog-title">Add to Playlist</div>
+        <button class="lyrics-close-btn" id="btn-close-add-to-pl-modal" title="Close">✕</button>
+      </div>
+      <div class="m3-dialog-content" style="padding: 0 24px 20px 24px;">
+        <div id="add-to-pl-track-info" style="font-size: 0.88rem; font-weight: 600; margin-bottom: 14px; color: var(--md-sys-color-primary); word-break: break-word;"></div>
+        <div class="add-to-pl-list" id="add-to-pl-list" style="max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px;">
+          <!-- Rendered dynamically -->
+        </div>
+        <div style="border-top: 1px solid var(--md-sys-color-outline-variant); margin-top: 14px; padding-top: 12px; display: flex; justify-content: space-between; align-items: center;">
+          <button class="btn-m3-text" id="btn-add-to-new-pl-trigger" style="font-size: 0.84rem; font-weight: 600; color: var(--md-sys-color-primary);">+ New Playlist</button>
+          <button class="btn-m3-text" id="btn-cancel-add-to-pl">Done</button>
+        </div>
       </div>
     </div>
   </div>
