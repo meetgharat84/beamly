@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Tray, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage } = require('electron');
 const path = require('path');
 const db = require('./db');
 const youtubeResolver = require('./youtubeResolver');
@@ -30,6 +30,10 @@ function createWindow() {
 
   mainWindow.loadFile('index.html');
 
+  mainWindow.once('ready-to-show', () => {
+    updateThumbarButtons(false);
+  });
+
   // Initialize Cast service with callbacks forwarding to renderer
   castService.initCastService(
     devices => {
@@ -47,6 +51,67 @@ function createWindow() {
   mainWindow.on('minimize', (event) => {
     // Keep running in background
   });
+}
+
+// ---------------- Windows Taskbar Thumbnail Toolbar (SMTC / Thumbar) ----------------
+
+let thumbarIcons = null;
+
+function getThumbarIcons() {
+  if (!thumbarIcons) {
+    try {
+      thumbarIcons = {
+        play: nativeImage.createFromPath(path.join(__dirname, 'assets/thumbar-play.png')),
+        pause: nativeImage.createFromPath(path.join(__dirname, 'assets/thumbar-pause.png')),
+        prev: nativeImage.createFromPath(path.join(__dirname, 'assets/thumbar-prev.png')),
+        next: nativeImage.createFromPath(path.join(__dirname, 'assets/thumbar-next.png')),
+      };
+    } catch (err) {
+      console.warn('[THUMBAR] Error loading taskbar thumbnail icons:', err.message);
+    }
+  }
+  return thumbarIcons;
+}
+
+function updateThumbarButtons(isPlaying) {
+  if (process.platform !== 'win32' || !mainWindow || mainWindow.isDestroyed()) return;
+
+  try {
+    const icons = getThumbarIcons();
+    if (!icons || !icons.play || icons.play.isEmpty()) return;
+
+    mainWindow.setThumbarButtons([
+      {
+        tooltip: 'Previous Track',
+        icon: icons.prev,
+        click: () => {
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('player:prev');
+          }
+        }
+      },
+      {
+        tooltip: isPlaying ? 'Pause' : 'Play',
+        icon: isPlaying ? icons.pause : icons.play,
+        click: () => {
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('player:toggle-play');
+          }
+        }
+      },
+      {
+        tooltip: 'Next Track',
+        icon: icons.next,
+        click: () => {
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('player:next');
+          }
+        }
+      }
+    ]);
+  } catch (err) {
+    console.warn('[THUMBAR] Could not set taskbar buttons:', err.message);
+  }
 }
 
 function createTray() {
@@ -70,6 +135,7 @@ function createTray() {
 }
 
 function updateTrayMenu() {
+  updateThumbarButtons(currentPlayingInfo.isPlaying);
   if (!tray) return;
 
   const contextMenu = Menu.buildFromTemplate([

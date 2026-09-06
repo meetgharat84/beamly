@@ -3048,29 +3048,132 @@ function closeAddToPlaylistModal() {
 }
 
 // -------------------------------------------------------------------
-// 16. MediaSession API & Background Playback
+// 16. Windows System Media Transport Controls (SMTC) & MediaSession API
 // -------------------------------------------------------------------
 
-function setupMediaSession(track) {
+let lastMediaSessionPositionUpdate = 0;
+
+function updateMediaSessionPositionState(force = false) {
+  if (!('mediaSession' in navigator) || !('setPositionState' in navigator.mediaSession)) return;
+  const now = Date.now();
+  if (!force && now - lastMediaSessionPositionUpdate < 800) return;
+  lastMediaSessionPositionUpdate = now;
+
+  try {
+    const duration = el.audio.duration || state.currentTrack?.duration || 0;
+    const position = el.audio.currentTime || 0;
+    if (duration > 0 && !isNaN(duration) && !isNaN(position) && position <= duration) {
+      navigator.mediaSession.setPositionState({
+        duration: duration,
+        playbackRate: el.audio.playbackRate || 1.0,
+        position: position
+      });
+    }
+  } catch (err) {
+    // Gracefully ignore if audio duration not ready
+  }
+}
+
+function updateMediaSessionPlaybackState(isPlaying) {
   if (!('mediaSession' in navigator)) return;
+  navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+}
+
+function setupMediaSession(track) {
+  if (!('mediaSession' in navigator) || !track) return;
+
+  const artUrl = getArtworkUrl(track) || 'assets/logo.png';
+  const albumName = track.album || track.albumName || 'Beamly Music';
+
+  // High-resolution artwork array for Windows SMTC and native overlay
+  const artworkArray = [
+    { src: artUrl, sizes: '96x96', type: 'image/jpeg' },
+    { src: artUrl, sizes: '128x128', type: 'image/jpeg' },
+    { src: artUrl, sizes: '192x192', type: 'image/jpeg' },
+    { src: artUrl, sizes: '256x256', type: 'image/jpeg' },
+    { src: artUrl, sizes: '384x384', type: 'image/jpeg' },
+    { src: artUrl, sizes: '512x512', type: 'image/jpeg' }
+  ];
 
   navigator.mediaSession.metadata = new MediaMetadata({
-    title: track.title,
-    artist: track.artist,
-    album: track.album || 'Beamly Music',
-    artwork: [
-      { src: track.artwork || 'assets/logo.png', sizes: '512x512', type: 'image/jpeg' }
-    ]
+    title: track.title || 'Unknown Title',
+    artist: track.artist || 'Unknown Artist',
+    album: albumName,
+    artwork: artworkArray
   });
 
-  navigator.mediaSession.setActionHandler('play', () => togglePlayPause());
-  navigator.mediaSession.setActionHandler('pause', () => togglePlayPause());
-  navigator.mediaSession.setActionHandler('previoustrack', () => playPrevTrack());
-  navigator.mediaSession.setActionHandler('nexttrack', () => playNextTrack());
-  navigator.mediaSession.setActionHandler('seekto', (details) => {
-    if (details.seekTime && el.audio.duration) {
-      el.audio.currentTime = details.seekTime;
+  updateMediaSessionPlaybackState(state.isPlaying);
+  updateMediaSessionPositionState(true);
+}
+
+function setupMediaSessionActionHandlers() {
+  if (!('mediaSession' in navigator)) return;
+
+  const bindAction = (action, handler) => {
+    try {
+      navigator.mediaSession.setActionHandler(action, handler);
+    } catch (err) {
+      console.warn(`MediaSession action "${action}" not supported:`, err.message);
     }
+  };
+
+  // Bind play, pause, previoustrack, nexttrack, and seekto actions
+  bindAction('play', async () => {
+    if (el.audio.paused && state.currentTrack) {
+      try {
+        await el.audio.play();
+        state.isPlaying = true;
+        updatePlayPauseIcons(true);
+        updateMediaSessionPlaybackState(true);
+      } catch (e) {
+        togglePlayPause();
+      }
+    }
+  });
+
+  bindAction('pause', () => {
+    if (!el.audio.paused) {
+      el.audio.pause();
+      state.isPlaying = false;
+      updatePlayPauseIcons(false);
+      updateMediaSessionPlaybackState(false);
+    }
+  });
+
+  bindAction('previoustrack', () => {
+    playPrevTrack();
+  });
+
+  bindAction('nexttrack', () => {
+    playNextTrack();
+  });
+
+  bindAction('seekto', (details) => {
+    if (details.seekTime !== undefined && details.seekTime !== null && !isNaN(details.seekTime)) {
+      el.audio.currentTime = details.seekTime;
+      updateMediaSessionPositionState(true);
+    }
+  });
+
+  bindAction('seekbackward', (details) => {
+    const skip = details.seekOffset || 10;
+    el.audio.currentTime = Math.max(0, el.audio.currentTime - skip);
+    updateMediaSessionPositionState(true);
+  });
+
+  bindAction('seekforward', (details) => {
+    const skip = details.seekOffset || 10;
+    const dur = el.audio.duration || state.currentTrack?.duration || 0;
+    el.audio.currentTime = Math.min(dur, el.audio.currentTime + skip);
+    updateMediaSessionPositionState(true);
+  });
+
+  bindAction('stop', () => {
+    el.audio.pause();
+    el.audio.currentTime = 0;
+    state.isPlaying = false;
+    updatePlayPauseIcons(false);
+    updateMediaSessionPlaybackState(false);
   });
 }
 
@@ -3330,7 +3433,42 @@ function setupEventListeners() {
     }
   });
 
-  // Audio Player Events
+  // Audio Player Events (Synchronize Windows SMTC & MediaSession)
+  el.audio.addEventListener('play', () => {
+    state.isPlaying = true;
+    updatePlayPauseIcons(true);
+    updateMediaSessionPlaybackState(true);
+    updateMediaSessionPositionState(true);
+    window.beamly.updatePlayerStatus({
+      isPlaying: true,
+      trackTitle: state.currentTrack?.title,
+      artist: state.currentTrack?.artist,
+      position: el.audio.currentTime || 0,
+      duration: el.audio.duration || 0
+    });
+  });
+
+  el.audio.addEventListener('playing', () => {
+    state.isPlaying = true;
+    updatePlayPauseIcons(true);
+    updateMediaSessionPlaybackState(true);
+    updateMediaSessionPositionState(true);
+  });
+
+  el.audio.addEventListener('pause', () => {
+    state.isPlaying = false;
+    updatePlayPauseIcons(false);
+    updateMediaSessionPlaybackState(false);
+    updateMediaSessionPositionState(true);
+    window.beamly.updatePlayerStatus({
+      isPlaying: false,
+      trackTitle: state.currentTrack?.title,
+      artist: state.currentTrack?.artist,
+      position: el.audio.currentTime || 0,
+      duration: el.audio.duration || 0
+    });
+  });
+
   el.audio.addEventListener('timeupdate', () => {
     const current = el.audio.currentTime || 0;
     const duration = el.audio.duration || state.currentTrack?.duration || 0;
@@ -3343,6 +3481,9 @@ function setupEventListeners() {
       el.pProgressFill.style.width = `${percent}%`;
       el.pProgressSlider.value = percent;
     }
+
+    // Synchronize native Windows SMTC scrubber timeline
+    updateMediaSessionPositionState(false);
 
     // Live synced lyrics highlight (non-blocking, RAF-coalesced, O(log N))
     queueSyncActiveLyricLine(current);
@@ -3413,6 +3554,7 @@ async function init() {
 
   // Setup Search input & Event listeners
   setupSearch();
+  setupMediaSessionActionHandlers();
   setupEventListeners();
   updateSettingsAudioQualityUI();
 
