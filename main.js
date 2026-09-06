@@ -327,6 +327,18 @@ ipcMain.handle('ytmusic:search', async (event, args) => {
   }
 });
 
+ipcMain.handle('ytmusic:search-more', async (event, searchSessionId) => {
+  try {
+    const id = typeof searchSessionId === 'object' && searchSessionId !== null
+      ? (searchSessionId.searchSessionId || searchSessionId.id)
+      : searchSessionId;
+    return await youtubeResolver.searchMore(id);
+  } catch (err) {
+    console.error('ytmusic:search-more error:', err);
+    return { tracks: [], hasMore: false };
+  }
+});
+
 ipcMain.handle('ytmusic:search-suggestions', async (event, query) => {
   try {
     const q = typeof query === 'object' && query !== null ? query.query : query;

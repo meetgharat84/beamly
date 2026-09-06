@@ -3278,4 +3278,31 @@ body {
   color: var(--md-sys-color-on-surface);
 }
 
+/* ---------------- Search Infinite Scroll Spinner ---------------- */
+.search-infinite-spinner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px 0 16px 0;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: 0.88rem;
+  font-weight: 500;
+}
+
+.search-infinite-spinner .spinner-ring {
+  width: 20px;
+  height: 20px;
+  border: 2.5px solid var(--md-sys-color-surface-container-highest);
+  border-top-color: var(--md-sys-color-primary);
+  border-radius: 50%;
+  animation: searchSpinRing 0.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@keyframes searchSpinRing {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+
 

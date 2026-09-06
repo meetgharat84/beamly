@@ -27,6 +27,7 @@ contextBridge.exposeInMainWorld('beamly', {
       : { query: queryOrOptions, type };
     return ipcRenderer.invoke('ytmusic:search', payload);
   },
+  searchMore: (searchSessionId) => ipcRenderer.invoke('ytmusic:search-more', searchSessionId),
   getSearchSuggestions: (query) => ipcRenderer.invoke('ytmusic:search-suggestions', query),
   getMoodFeed: (mood) => ipcRenderer.invoke('ytmusic:get-mood-feed', mood),
 

@@ -51,8 +51,13 @@ const state = {
   isFetchingRelated: false,
   isQueueOpen: false,
 
-  // Search Filters
+  // Search Filters & Infinite Scroll Pagination
   searchCategory: 'all',
+  currentSearchQuery: '',
+  searchSessionId: null,
+  hasMoreSearchResults: false,
+  isLoadingMoreSearch: false,
+  currentSearchTracks: [],
 
   // Liked Tracks Collection
   likedTrackIds: new Set(),
@@ -165,6 +170,7 @@ const el = {
   btnDidYouMeanOrig: document.getElementById('btn-did-you-mean-orig'),
   searchTracksWrapper: document.getElementById('search-tracks-wrapper'),
   searchTracksContainer: document.getElementById('search-tracks-container'),
+  searchInfiniteSpinner: document.getElementById('search-infinite-spinner'),
   searchAlbumsSection: document.getElementById('search-albums-section'),
   searchAlbumsRow: document.getElementById('search-albums-row'),
   searchArtistsSection: document.getElementById('search-artists-section'),
@@ -1002,11 +1008,13 @@ function renderPlaylistView(plData) {
 // 9. Tracks Table Renderer (Search, Playlist, Offline)
 // -------------------------------------------------------------------
 
-function renderTrackTable(container, tracks, tracklist = [], isOfflineView = false) {
+function renderTrackTable(container, tracks, tracklist = [], isOfflineView = false, append = false, startIndex = 0) {
   if (!container) return;
-  container.innerHTML = '';
+  if (!append) {
+    container.innerHTML = '';
+  }
 
-  if (!tracks || tracks.length === 0) {
+  if (!append && (!tracks || tracks.length === 0)) {
     container.innerHTML = `
       <div style="padding: 40px 20px; text-align: center; color: var(--md-sys-color-on-surface-variant); font-size: 0.92rem;">
         No tracks to display.
@@ -1015,7 +1023,10 @@ function renderTrackTable(container, tracks, tracklist = [], isOfflineView = fal
     return;
   }
 
+  if (!tracks || tracks.length === 0) return;
+
   tracks.forEach((track, idx) => {
+    const rowIdx = startIndex + idx;
     const trackVideoId = track.id || track.yt_video_id || track.videoId;
     const isDownloaded = state.offlineTrackIds.has(track.id) || track.isOffline;
     const isDownloading = state.downloadingTrackIds.has(track.id);
@@ -1048,7 +1059,7 @@ function renderTrackTable(container, tracks, tracklist = [], isOfflineView = fal
 
     row.innerHTML = `
       <div class="track-row-num">
-        <span class="row-num-text">${idx + 1}</span>
+        <span class="row-num-text">${rowIdx + 1}</span>
         <button class="row-play-btn" title="Play">
           <svg viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20 6 4"></polygon></svg>
         </button>
@@ -1097,7 +1108,7 @@ function renderTrackTable(container, tracks, tracklist = [], isOfflineView = fal
         return;
       }
 
-      playTrack(track, tracklist, idx);
+      playTrack(track, tracklist, rowIdx);
     });
 
     // Right-Click Context Menu (Instant Add to Playlist)
@@ -1223,6 +1234,18 @@ function setupSearch() {
       }
     });
   });
+
+  // Infinite Scroll Listener on Main Content View
+  if (el.mainContent) {
+    el.mainContent.addEventListener('scroll', () => {
+      if (state.currentView === 'search' && state.hasMoreSearchResults && !state.isLoadingMoreSearch) {
+        const { scrollTop, scrollHeight, clientHeight } = el.mainContent;
+        if (scrollTop + clientHeight >= scrollHeight - 350) {
+          loadMoreSearchResults();
+        }
+      }
+    });
+  }
 }
 
 function navigateSuggestions(delta) {
@@ -1421,7 +1444,17 @@ async function executeSearch(query) {
       if (el.searchTracksWrapper) el.searchTracksWrapper.style.display = 'none';
     } else {
       if (el.searchTracksWrapper) el.searchTracksWrapper.style.display = 'block';
-      renderTrackTable(el.searchTracksContainer, tracks, tracks);
+      state.currentSearchTracks = [...tracks];
+      state.currentSearchQuery = query;
+      state.currentSearchCategory = category;
+      state.searchSessionId = results?.searchSessionId || null;
+      state.hasMoreSearchResults = Boolean(results?.hasMore);
+      state.isLoadingMoreSearch = false;
+      renderTrackTable(el.searchTracksContainer, tracks, tracks, false, false, 0);
+    }
+
+    if (el.searchInfiniteSpinner) {
+      el.searchInfiniteSpinner.style.display = 'none';
     }
 
     // 2. Render Albums
@@ -1454,6 +1487,46 @@ async function executeSearch(query) {
   } catch (err) {
     console.error('Failed to perform search:', err);
     if (el.searchTitle) el.searchTitle.textContent = 'Error fetching search results';
+    if (el.searchInfiniteSpinner) el.searchInfiniteSpinner.style.display = 'none';
+  }
+}
+
+// ---------------- Deep Search Results & Infinite Scroll Loader ----------------
+async function loadMoreSearchResults() {
+  if (state.currentView !== 'search') return;
+  if (!state.hasMoreSearchResults || state.isLoadingMoreSearch || !state.searchSessionId) return;
+  const category = state.searchCategory || 'all';
+  if (category !== 'all' && category !== 'songs' && category !== 'song') return;
+
+  state.isLoadingMoreSearch = true;
+  if (el.searchInfiniteSpinner) {
+    el.searchInfiniteSpinner.style.display = 'flex';
+  }
+
+  try {
+    const moreData = await window.beamly.searchMore(state.searchSessionId);
+    if (moreData && Array.isArray(moreData.tracks) && moreData.tracks.length > 0) {
+      const existingIds = new Set(state.currentSearchTracks.map(t => t.id || t.yt_video_id));
+      const uniqueNewTracks = moreData.tracks.filter(t => !existingIds.has(t.id || t.yt_video_id));
+
+      if (uniqueNewTracks.length > 0) {
+        const startIndex = state.currentSearchTracks.length;
+        state.currentSearchTracks.push(...uniqueNewTracks);
+        renderTrackTable(el.searchTracksContainer, uniqueNewTracks, state.currentSearchTracks, false, true, startIndex);
+      }
+
+      state.hasMoreSearchResults = Boolean(moreData.hasMore);
+    } else {
+      state.hasMoreSearchResults = false;
+    }
+  } catch (err) {
+    console.warn('[SEARCH] Failed to load more results:', err.message);
+    state.hasMoreSearchResults = false;
+  } finally {
+    state.isLoadingMoreSearch = false;
+    if (el.searchInfiniteSpinner) {
+      el.searchInfiniteSpinner.style.display = 'none';
+    }
   }
 }
 

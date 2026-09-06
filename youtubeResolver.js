@@ -741,10 +741,21 @@ async function getPlaylistDetails(playlistId) {
 const searchCache = new Map(); // key -> { data, timestamp }
 const suggestionsCache = new Map();
 const moodFeedCache = new Map();
+const activeSearchContinuations = new Map(); // searchSessionId -> { continuation, query, type, seenTrackIds, timestamp }
 
 const SEARCH_CACHE_TTL_MS = 15 * 60 * 1000;      // 15 minutes
 const SUGGESTIONS_CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
 const MOOD_FEED_CACHE_TTL_MS = 20 * 60 * 1000;   // 20 minutes
+const CONTINUATION_TTL_MS = 20 * 60 * 1000;      // 20 minutes
+
+function cleanupExpiredContinuations() {
+  const now = Date.now();
+  for (const [id, data] of activeSearchContinuations.entries()) {
+    if (now - data.timestamp > CONTINUATION_TTL_MS) {
+      activeSearchContinuations.delete(id);
+    }
+  }
+}
 
 // ---------------- Pure YouTube Music Search (Songs, Albums, Artists) ----------------
 async function searchMusic(queryOrOptions, type = 'all') {
@@ -763,6 +774,8 @@ async function searchMusic(queryOrOptions, type = 'all') {
     emptyArray.tracks = [];
     emptyArray.albums = [];
     emptyArray.artists = [];
+    emptyArray.searchSessionId = null;
+    emptyArray.hasMore = false;
     return emptyArray;
   }
 
@@ -783,35 +796,77 @@ async function searchMusic(queryOrOptions, type = 'all') {
   const seenAlbumIds = new Set();
   const seenArtistIds = new Set();
   let didYouMean = null;
+  let lastContinuation = null;
 
   try {
     const yt = await getInnertube();
 
-    // Helper: Parse track items from YTM search response
+    // Helper: Parse track items from YTM search response with broader, resilient parsing
     const parseSongItems = (contents, markOfficial = true) => {
-      if (!Array.isArray(contents)) return;
-      for (const section of contents) {
-        const items = Array.isArray(section.contents) ? section.contents : (Array.isArray(section.items) ? section.items : [section]);
+      if (!contents) return;
+      const sections = Array.isArray(contents)
+        ? contents
+        : (contents.contents ? (Array.isArray(contents.contents) ? contents.contents : [contents.contents]) : [contents]);
+
+      for (const section of sections) {
+        const items = Array.isArray(section.contents)
+          ? section.contents
+          : (Array.isArray(section.items) ? section.items : (section.type === 'MusicResponsiveListItem' ? [section] : [section]));
+
         for (const item of items) {
-          const itemId = item.id || item.video_id;
+          if (!item) continue;
+          const itemId = item.id || item.video_id || item.endpoint?.payload?.videoId || item.overlay?.content?.endpoint?.payload?.videoId;
           if (itemId && isPlayableVideoId(itemId) && !seenTrackIds.has(itemId)) {
-            const rawDuration = item.duration?.seconds || (typeof item.duration === 'number' ? item.duration : 0);
-            // Filter out non-music clutter like 1+ hour mixes/podcasts unless user explicitly searched for them
+            let rawDuration = 0;
+            if (item.duration?.seconds) {
+              rawDuration = item.duration.seconds;
+            } else if (typeof item.duration === 'number') {
+              rawDuration = item.duration;
+            } else if (typeof item.duration?.text === 'string') {
+              const parts = item.duration.text.split(':').map(Number);
+              if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+                rawDuration = parts[0] * 60 + parts[1];
+              } else if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+                rawDuration = parts[0] * 3600 + parts[1] * 60 + parts[2];
+              }
+            }
+
+            // Broader Result Parsing: Only filter out extreme non-music clutter (e.g., > 30 mins) unless explicitly requested
             const hasMixIntent = /\b(mix|set|compilation|hours|hour|podcast|full)\b/i.test(trimmed);
-            if (!hasMixIntent && rawDuration > 15 * 60) {
+            if (!hasMixIntent && rawDuration > 30 * 60) {
               continue;
             }
 
             seenTrackIds.add(itemId);
             const thumbUrl = extractThumbnailUrl(item);
-            const artistName = item.artists ? (Array.isArray(item.artists) ? item.artists.map(a => a.name || a.text || a).join(', ') : (item.artists.name || item.artists)) : (item.author?.name || '');
+
+            let artistName = '';
+            if (Array.isArray(item.artists)) {
+              artistName = item.artists.map(a => a.name || a.text || (typeof a === 'string' ? a : '')).filter(Boolean).join(', ');
+            } else if (item.artists && typeof item.artists === 'object') {
+              artistName = item.artists.name || item.artists.text || '';
+            } else if (typeof item.artists === 'string') {
+              artistName = item.artists;
+            } else if (item.author?.name) {
+              artistName = item.author.name;
+            } else if (Array.isArray(item.authors)) {
+              artistName = item.authors.map(a => a.name || a.text).filter(Boolean).join(', ');
+            }
+
+            let albumName = 'Single';
+            if (item.album) {
+              albumName = item.album.name || item.album.title || item.album.text || 'Single';
+            }
+
+            const titleStr = item.title?.text || (Array.isArray(item.title?.runs) ? item.title.runs.map(r => r.text).join('') : '') || item.title?.toString() || item.headline?.text || item.name || 'Unknown Title';
+
             tracks.push({
               id: itemId,
               yt_video_id: itemId,
-              title: item.title?.text || item.title?.toString() || 'Unknown Title',
+              title: titleStr,
               artist: artistName || 'Unknown Artist',
               artists: artistName ? [artistName] : [],
-              album: item.album?.name || 'Single',
+              album: albumName,
               duration: rawDuration,
               artwork: thumbUrl,
               isOfficialSong: markOfficial
@@ -821,12 +876,26 @@ async function searchMusic(queryOrOptions, type = 'all') {
       }
     };
 
-    // 1. If type is 'all' or 'songs' or 'song' -> Prioritize official songs
+    // 1. If type is 'all' or 'songs' or 'song' -> Prioritize official songs & auto-fetch initial 25-35+ batch
     if (normalizedType === 'all' || normalizedType === 'songs' || normalizedType === 'song') {
       try {
         const songRes = await yt.music.search(trimmed, { type: 'song' });
-        if (songRes && Array.isArray(songRes.contents)) {
+        if (songRes && songRes.contents) {
           parseSongItems(songRes.contents, true);
+        }
+        lastContinuation = songRes;
+
+        // Automatically fetch page 2 immediately if continuation is available so initial batch is 25-35+ tracks!
+        if (songRes?.has_continuation) {
+          try {
+            const page2 = await songRes.getContinuation();
+            if (page2 && page2.contents) {
+              parseSongItems(page2.contents, true);
+              lastContinuation = page2;
+            }
+          } catch (contErr) {
+            console.warn('[SEARCH] Initial continuation fetch error:', contErr.message);
+          }
         }
       } catch (songErr) {
         console.warn('yt.music.search for songs error:', songErr.message);
@@ -950,12 +1019,27 @@ async function searchMusic(queryOrOptions, type = 'all') {
       }
     }
 
+    let searchSessionId = null;
+    if (lastContinuation && lastContinuation.has_continuation) {
+      cleanupExpiredContinuations();
+      searchSessionId = 'search_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
+      activeSearchContinuations.set(searchSessionId, {
+        continuation: lastContinuation,
+        query: trimmed,
+        type: normalizedType,
+        seenTrackIds: new Set(seenTrackIds),
+        timestamp: Date.now()
+      });
+    }
+
     // Array-like wrapper for backwards compatibility
     const responseArray = [...tracks];
     responseArray.tracks = tracks;
     responseArray.albums = albums;
     responseArray.artists = artists;
     responseArray.didYouMean = didYouMean;
+    responseArray.searchSessionId = searchSessionId;
+    responseArray.hasMore = Boolean(lastContinuation && lastContinuation.has_continuation);
 
     // Cache the response
     searchCache.set(cacheKey, { data: responseArray, timestamp: Date.now() });
@@ -968,7 +1052,124 @@ async function searchMusic(queryOrOptions, type = 'all') {
     emptyArray.albums = [];
     emptyArray.artists = [];
     emptyArray.didYouMean = null;
+    emptyArray.searchSessionId = null;
+    emptyArray.hasMore = false;
     return emptyArray;
+  }
+}
+
+// ---------------- Infinite Scroll Subsequent Batch Loader ----------------
+async function searchMore(searchSessionId) {
+  if (!searchSessionId || !activeSearchContinuations.has(searchSessionId)) {
+    return { tracks: [], hasMore: false, searchSessionId };
+  }
+
+  const session = activeSearchContinuations.get(searchSessionId);
+  const { continuation, seenTrackIds, query } = session;
+
+  if (!continuation || !continuation.has_continuation) {
+    activeSearchContinuations.delete(searchSessionId);
+    return { tracks: [], hasMore: false, searchSessionId };
+  }
+
+  try {
+    const nextContinuation = await continuation.getContinuation();
+    const newTracks = [];
+
+    const parseNextItems = (contents) => {
+      if (!contents) return;
+      const sections = Array.isArray(contents)
+        ? contents
+        : (contents.contents ? (Array.isArray(contents.contents) ? contents.contents : [contents.contents]) : [contents]);
+
+      for (const section of sections) {
+        const items = Array.isArray(section.contents)
+          ? section.contents
+          : (Array.isArray(section.items) ? section.items : (section.type === 'MusicResponsiveListItem' ? [section] : [section]));
+
+        for (const item of items) {
+          if (!item) continue;
+          const itemId = item.id || item.video_id || item.endpoint?.payload?.videoId || item.overlay?.content?.endpoint?.payload?.videoId;
+          if (itemId && isPlayableVideoId(itemId) && !seenTrackIds.has(itemId)) {
+            let rawDuration = 0;
+            if (item.duration?.seconds) {
+              rawDuration = item.duration.seconds;
+            } else if (typeof item.duration === 'number') {
+              rawDuration = item.duration;
+            } else if (typeof item.duration?.text === 'string') {
+              const parts = item.duration.text.split(':').map(Number);
+              if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+                rawDuration = parts[0] * 60 + parts[1];
+              } else if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+                rawDuration = parts[0] * 3600 + parts[1] * 60 + parts[2];
+              }
+            }
+
+            const hasMixIntent = /\b(mix|set|compilation|hours|hour|podcast|full)\b/i.test(query);
+            if (!hasMixIntent && rawDuration > 30 * 60) {
+              continue;
+            }
+
+            seenTrackIds.add(itemId);
+            const thumbUrl = extractThumbnailUrl(item);
+
+            let artistName = '';
+            if (Array.isArray(item.artists)) {
+              artistName = item.artists.map(a => a.name || a.text || (typeof a === 'string' ? a : '')).filter(Boolean).join(', ');
+            } else if (item.artists && typeof item.artists === 'object') {
+              artistName = item.artists.name || item.artists.text || '';
+            } else if (typeof item.artists === 'string') {
+              artistName = item.artists;
+            } else if (item.author?.name) {
+              artistName = item.author.name;
+            } else if (Array.isArray(item.authors)) {
+              artistName = item.authors.map(a => a.name || a.text).filter(Boolean).join(', ');
+            }
+
+            let albumName = 'Single';
+            if (item.album) {
+              albumName = item.album.name || item.album.title || item.album.text || 'Single';
+            }
+
+            const titleStr = item.title?.text || (Array.isArray(item.title?.runs) ? item.title.runs.map(r => r.text).join('') : '') || item.title?.toString() || item.headline?.text || item.name || 'Unknown Title';
+
+            newTracks.push({
+              id: itemId,
+              yt_video_id: itemId,
+              title: titleStr,
+              artist: artistName || 'Unknown Artist',
+              artists: artistName ? [artistName] : [],
+              album: albumName,
+              duration: rawDuration,
+              artwork: thumbUrl,
+              isOfficialSong: true
+            });
+          }
+        }
+      }
+    };
+
+    if (nextContinuation && nextContinuation.contents) {
+      parseNextItems(nextContinuation.contents);
+    }
+
+    const hasMore = Boolean(nextContinuation && nextContinuation.has_continuation);
+    if (hasMore) {
+      session.continuation = nextContinuation;
+      session.timestamp = Date.now();
+    } else {
+      activeSearchContinuations.delete(searchSessionId);
+    }
+
+    return {
+      tracks: newTracks,
+      hasMore,
+      searchSessionId
+    };
+  } catch (err) {
+    console.error(`[RESOLVER] searchMore failed for session ${searchSessionId}:`, err.message);
+    activeSearchContinuations.delete(searchSessionId);
+    return { tracks: [], hasMore: false, searchSessionId };
   }
 }
 
@@ -1508,6 +1709,7 @@ module.exports = {
   getLibrary,
   getPlaylistDetails,
   searchMusic,
+  searchMore,
   getSearchSuggestions,
   getRelatedTracks,
   getMoodFeed,
