@@ -360,67 +360,114 @@ ipcMain.handle('ytmusic:get-curated-home', async () => {
 
 ipcMain.handle('ytmusic:import-playlist', async (event, urlOrId) => {
   try {
-    return await youtubeResolver.importPlaylistFromUrl(urlOrId);
+    console.log('[IPC] ytmusic:import-playlist received URL/ID:', urlOrId);
+    const result = await youtubeResolver.importPlaylistFromUrl(urlOrId);
+    console.log(`[IPC] ytmusic:import-playlist successfully resolved "${result.title}" with ${result.tracks?.length || 0} tracks.`);
+    return result;
   } catch (err) {
-    console.error('ytmusic:import-playlist error:', err);
+    console.error('[IPC] ytmusic:import-playlist error:', err.message);
     throw err;
   }
 });
 
 // ---------------- Local Playlists Management ----------------
 
-ipcMain.handle('playlists:create-local', async (event, { name, description }) => {
+ipcMain.handle('playlists:create-local', async (event, data) => {
   try {
-    const pl = db.createLocalPlaylist(name, description);
+    const plName = typeof data === 'object' ? (data?.name || data?.title) : data;
+    console.log('[IPC] playlists:create-local request for:', plName);
+    const pl = db.createLocalPlaylist(data);
+    console.log('[IPC] playlists:create-local created:', pl.id, pl.name);
     return { success: true, playlist: pl };
   } catch (err) {
-    console.error('playlists:create-local error:', err);
+    console.error('[IPC] playlists:create-local error:', err.message);
     return { success: false, error: err.message };
   }
 });
 
 ipcMain.handle('playlists:get-local', async () => {
   try {
-    return db.getLocalPlaylists();
+    const lists = db.getLocalPlaylists();
+    console.log(`[IPC] playlists:get-local returning ${lists.length} local playlists.`);
+    return lists;
   } catch (err) {
-    console.error('playlists:get-local error:', err);
+    console.error('[IPC] playlists:get-local error:', err.message);
     return [];
   }
 });
 
 ipcMain.handle('playlists:get-local-by-id', async (event, playlistId) => {
   try {
+    console.log('[IPC] playlists:get-local-by-id:', playlistId);
     return db.getLocalPlaylist(playlistId);
   } catch (err) {
-    console.error('playlists:get-local-by-id error:', err);
+    console.error('[IPC] playlists:get-local-by-id error:', err.message);
     return null;
   }
 });
 
 ipcMain.handle('playlists:add-track', async (event, { playlistId, track }) => {
   try {
-    return db.addTrackToLocalPlaylist(playlistId, track);
+    console.log(`[IPC] playlists:add-track to "${playlistId}": "${track?.title}" (${track?.id})`);
+    const result = db.addTrackToLocalPlaylist(playlistId, track);
+    return result;
   } catch (err) {
-    console.error('playlists:add-track error:', err);
+    console.error('[IPC] playlists:add-track error:', err.message);
     return { success: false, error: err.message };
   }
 });
 
 ipcMain.handle('playlists:remove-track', async (event, { playlistId, trackId }) => {
   try {
+    console.log(`[IPC] playlists:remove-track from "${playlistId}": track ${trackId}`);
     return db.removeTrackFromLocalPlaylist(playlistId, trackId);
   } catch (err) {
-    console.error('playlists:remove-track error:', err);
+    console.error('[IPC] playlists:remove-track error:', err.message);
     return { success: false, error: err.message };
   }
 });
 
 ipcMain.handle('playlists:delete-local', async (event, playlistId) => {
   try {
+    console.log('[IPC] playlists:delete-local:', playlistId);
     return db.deleteLocalPlaylist(playlistId);
   } catch (err) {
-    console.error('playlists:delete-local error:', err);
+    console.error('[IPC] playlists:delete-local error:', err.message);
     return { success: false, error: err.message };
+  }
+});
+
+// ---------------- Liked (Favorite) Songs Collection ----------------
+
+ipcMain.handle('likes:toggle', async (event, track) => {
+  try {
+    const trackId = track?.id || track?.yt_video_id || track?.videoId;
+    console.log(`[IPC] likes:toggle for "${track?.title}" (${trackId})`);
+    const result = db.toggleLikeTrack(track);
+    return result;
+  } catch (err) {
+    console.error('[IPC] likes:toggle error:', err.message);
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('likes:is-liked', async (event, trackId) => {
+  try {
+    return db.isTrackLiked(trackId);
+  } catch (err) {
+    console.error('[IPC] likes:is-liked error:', err.message);
+    return false;
+  }
+});
+
+ipcMain.handle('likes:get-all', async () => {
+  try {
+    const list = db.getLikedTracks();
+    console.log(`[IPC] likes:get-all returning ${list.length} liked tracks.`);
+    return list;
+  } catch (err) {
+    console.error('[IPC] likes:get-all error:', err.message);
+    return [];
   }
 });
 

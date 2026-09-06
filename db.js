@@ -24,6 +24,7 @@ let memoryCache = {
   track_matches: {},
   offline_tracks: {},
   local_playlists: {},
+  liked_songs: {},
   last_played_track: null
 };
 
@@ -39,6 +40,7 @@ function loadCacheFromDisk() {
           track_matches: (parsed && typeof parsed.track_matches === 'object' && parsed.track_matches !== null) ? parsed.track_matches : {},
           offline_tracks: (parsed && typeof parsed.offline_tracks === 'object' && parsed.offline_tracks !== null) ? parsed.offline_tracks : {},
           local_playlists: (parsed && typeof parsed.local_playlists === 'object' && parsed.local_playlists !== null) ? parsed.local_playlists : {},
+          liked_songs: (parsed && typeof parsed.liked_songs === 'object' && parsed.liked_songs !== null) ? parsed.liked_songs : {},
           last_played_track: (parsed && typeof parsed.last_played_track === 'object') ? parsed.last_played_track : null
         };
         return;
@@ -54,6 +56,7 @@ function loadCacheFromDisk() {
     track_matches: {},
     offline_tracks: {},
     local_playlists: {},
+    liked_songs: {},
     last_played_track: null
   };
   saveCacheToDisk();
@@ -226,12 +229,14 @@ function getCacheStats() {
   const offlineTracksList = Object.values(memoryCache.offline_tracks || {});
   const offlineTracksCount = offlineTracksList.length;
   const offlineBytes = offlineTracksList.reduce((acc, t) => acc + (t.file_size || 0), 0);
+  const likedSongsCount = Object.keys(memoryCache.liked_songs || {}).length;
 
   return {
     dbSizeBytes,
     trackMatchesCount,
     offlineTracksCount,
-    offlineBytes
+    offlineBytes,
+    likedSongsCount
   };
 }
 
@@ -386,6 +391,66 @@ function getLastPlayedTrack() {
   return memoryCache.last_played_track || null;
 }
 
+// ---------------- Liked (Favorite) Songs ----------------
+function likeTrack(track) {
+  if (!track || (!track.id && !track.yt_video_id && !track.videoId)) {
+    throw new Error('Cannot like an invalid track');
+  }
+  const videoId = track.id || track.yt_video_id || track.videoId;
+  const cleanTrack = {
+    id: videoId,
+    videoId: videoId,
+    yt_video_id: videoId,
+    title: track.title || 'Track',
+    artist: track.artist || (Array.isArray(track.artists) ? track.artists.join(', ') : (track.artists || 'Unknown Artist')),
+    artists: Array.isArray(track.artists) ? track.artists : [track.artist || 'Unknown Artist'],
+    album: track.album || 'Liked Songs',
+    thumbnail: track.thumbnail || track.artwork || '',
+    artwork: track.artwork || track.thumbnail || '',
+    duration: Number(track.duration) || 0,
+    added_at: Date.now()
+  };
+
+  if (!memoryCache.liked_songs) memoryCache.liked_songs = {};
+  memoryCache.liked_songs[videoId] = cleanTrack;
+  saveCacheToDisk();
+  console.log(`[DB-LIKES] Liked track "${cleanTrack.title}" (${videoId}). Total: ${Object.keys(memoryCache.liked_songs).length}`);
+  return { success: true, liked: true, track: cleanTrack };
+}
+
+function unlikeTrack(trackId) {
+  if (!trackId) return { success: false, error: 'Invalid track ID' };
+  if (!memoryCache.liked_songs || !memoryCache.liked_songs[trackId]) {
+    return { success: true, liked: false };
+  }
+  delete memoryCache.liked_songs[trackId];
+  saveCacheToDisk();
+  console.log(`[DB-LIKES] Unliked track ${trackId}. Total: ${Object.keys(memoryCache.liked_songs).length}`);
+  return { success: true, liked: false };
+}
+
+function toggleLikeTrack(track) {
+  if (!track) return { success: false, error: 'Invalid track' };
+  const trackId = track.id || track.yt_video_id || track.videoId;
+  if (!trackId) return { success: false, error: 'Track ID missing' };
+
+  if (isTrackLiked(trackId)) {
+    return unlikeTrack(trackId);
+  } else {
+    return likeTrack(track);
+  }
+}
+
+function isTrackLiked(trackId) {
+  if (!trackId || !memoryCache.liked_songs) return false;
+  return Boolean(memoryCache.liked_songs[trackId]);
+}
+
+function getLikedTracks() {
+  const list = Object.values(memoryCache.liked_songs || {});
+  return list.sort((a, b) => (b.added_at || 0) - (a.added_at || 0));
+}
+
 module.exports = {
   db: null,
   cacheFilePath,
@@ -412,5 +477,10 @@ module.exports = {
   removeTrackFromLocalPlaylist,
   deleteLocalPlaylist,
   saveLastPlayedTrack,
-  getLastPlayedTrack
+  getLastPlayedTrack,
+  likeTrack,
+  unlikeTrack,
+  toggleLikeTrack,
+  isTrackLiked,
+  getLikedTracks
 };

@@ -1214,6 +1214,73 @@ body {
   color: var(--md-sys-color-primary);
 }
 
+/* Like / Favorite Button Styling */
+#p-heart-btn,
+.like-btn {
+  color: var(--md-sys-color-on-surface-variant);
+  transition: color 0.15s ease, transform 0.15s ease;
+}
+
+#p-heart-btn:hover,
+.like-btn:hover {
+  color: #ff4070;
+  transform: scale(1.1);
+}
+
+#p-heart-btn.active,
+.like-btn.active {
+  color: #ff2a5f !important;
+}
+
+#p-heart-btn.active svg,
+.like-btn.active svg {
+  fill: #ff2a5f !important;
+  animation: heartPop 0.32s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes heartPop {
+  0% { transform: scale(1); }
+  45% { transform: scale(1.35); }
+  100% { transform: scale(1); }
+}
+
+/* Track row like button */
+.t-like-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  opacity: 0.7;
+}
+
+.t-like-btn:hover {
+  opacity: 1;
+  color: #ff4070;
+  background-color: var(--md-sys-color-surface-container-highest);
+}
+
+.t-like-btn.active {
+  color: #ff2a5f !important;
+  opacity: 1;
+}
+
+.t-like-btn.active svg {
+  fill: #ff2a5f !important;
+}
+
+.t-like-btn svg {
+  width: 17px;
+  height: 17px;
+  fill: currentColor;
+}
+
 .play-toggle-btn {
   width: 44px;
   height: 44px;

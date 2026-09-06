@@ -1112,12 +1112,23 @@ function extractPlaylistIdFromUrl(urlOrId) {
   if (!urlOrId || typeof urlOrId !== 'string') return null;
   const str = urlOrId.trim();
 
-  // Pattern 1: URL with ?list= or &list=
-  const listMatch = str.match(/[?&]list=([a-zA-Z0-9_-]+)/);
-  if (listMatch && listMatch[1]) return listMatch[1];
+  // Try parsing as standard URL first
+  try {
+    const urlObj = new URL(str.startsWith('http') ? str : `https://${str}`);
+    const listParam = urlObj.searchParams.get('list');
+    if (listParam && /^[a-zA-Z0-9_-]{8,}$/.test(listParam)) {
+      return listParam;
+    }
+  } catch (e) {}
 
-  // Pattern 2: Raw playlist ID
-  if (/^[a-zA-Z0-9_-]{10,}$/.test(str)) {
+  // Regex fallback: URL or query string with list=...
+  const listMatch = str.match(/[?&]?list=([a-zA-Z0-9_-]+)/i);
+  if (listMatch && listMatch[1]) {
+    return listMatch[1];
+  }
+
+  // Direct raw playlist ID (e.g., PL..., RD..., VL..., OLAK5uy_...)
+  if (/^[a-zA-Z0-9_-]{8,}$/.test(str)) {
     return str;
   }
 
@@ -1125,16 +1136,19 @@ function extractPlaylistIdFromUrl(urlOrId) {
 }
 
 async function importPlaylistFromUrl(urlOrId) {
+  console.log('[RESOLVER] importPlaylistFromUrl received input:', urlOrId);
   const playlistId = extractPlaylistIdFromUrl(urlOrId);
   if (!playlistId) {
-    throw new Error('Invalid YouTube or YouTube Music playlist link or ID');
+    throw new Error('Invalid YouTube or YouTube Music playlist link or ID. Please provide a link with ?list=... or a playlist ID.');
   }
 
+  console.log('[RESOLVER] Extracted playlist ID:', playlistId);
   const details = await getPlaylistDetails(playlistId);
   if (!details) {
     throw new Error(`Could not load playlist "${playlistId}". Please check that the playlist is public or unlisted.`);
   }
 
+  console.log(`[RESOLVER] Successfully resolved "${details.title}" with ${details.tracks?.length || 0} tracks.`);
   return details;
 }
 

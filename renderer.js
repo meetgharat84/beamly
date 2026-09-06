@@ -54,6 +54,10 @@ const state = {
   // Search Filters
   searchCategory: 'all',
 
+  // Liked Tracks Collection
+  likedTrackIds: new Set(),
+  likedTracks: [],
+
   // Local Playlists Management
   localPlaylists: [],
   targetTrackForPlaylist: null,
@@ -191,7 +195,7 @@ const el = {
   pArtist: document.getElementById('p-artist'),
   pStatusBadge: document.getElementById('p-status-badge'),
   pOfflineBadge: document.getElementById('p-offline-badge'),
-  pHeartBtn: document.getElementById('p-heart-btn'),
+  pHeartBtn: document.getElementById('p-heart-btn') || document.getElementById('like-btn'),
   pShuffleBtn: document.getElementById('p-shuffle-btn'),
   pPrevBtn: document.getElementById('p-prev-btn'),
   pPlayBtn: document.getElementById('p-play-btn'),
@@ -850,7 +854,10 @@ async function openPlaylist(playlistId) {
   try {
     showToast('Loading playlist...');
     let plData = null;
-    if (String(playlistId).startsWith('local_')) {
+    if (playlistId === 'local_liked_songs') {
+      await openLikedSongsPlaylist();
+      return;
+    } else if (String(playlistId).startsWith('local_')) {
       plData = await window.beamly.getLocalPlaylist(playlistId);
     } else {
       plData = await window.beamly.getPlaylist(playlistId);
@@ -866,9 +873,11 @@ async function openPlaylist(playlistId) {
   }
 }
 
+const LIKED_SONGS_COVER_SVG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%23450a1b'/%3E%3Cstop offset='100%25' stop-color='%23ff2a5f'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='200' height='200' rx='24' fill='url(%23g)'/%3E%3Cpath d='M100 152l-9.1-8.3C47.8 105.1 20 79.9 20 48.5 20 22.9 39.9 3 65.5 3c14.4 0 28.3 6.7 34.5 17.3C106.2 9.7 120.1 3 134.5 3 160.1 3 180 22.9 180 48.5c0 31.4-27.8 56.6-70.9 95.3L100 152z' fill='%23ffffff' transform='translate(0, 15) scale(0.85)' transform-origin='center'/%3E%3C/svg%3E";
+
 function renderPlaylistView(plData) {
   state.activePlaylist = plData;
-  const artUrl = getArtworkUrl(plData);
+  const artUrl = plData.artwork || (plData.id === 'local_liked_songs' ? LIKED_SONGS_COVER_SVG : getArtworkUrl(plData));
   el.plHeroArt.src = artUrl;
   el.plHeroArt.onerror = () => { el.plHeroArt.onerror = null; el.plHeroArt.src = FALLBACK_NOTE_ICON; };
   el.plHeroTitle.textContent = plData.name || 'Playlist';
@@ -918,13 +927,15 @@ function renderTrackTable(container, tracks, tracklist = [], isOfflineView = fal
   }
 
   tracks.forEach((track, idx) => {
+    const trackVideoId = track.id || track.yt_video_id || track.videoId;
     const isDownloaded = state.offlineTrackIds.has(track.id) || track.isOffline;
     const isDownloading = state.downloadingTrackIds.has(track.id);
-    const isCurrentActive = state.currentTrack && state.currentTrack.id === track.id;
+    const isLiked = state.likedTrackIds.has(trackVideoId);
+    const isCurrentActive = state.currentTrack && (state.currentTrack.id === track.id || state.currentTrack.yt_video_id === track.id);
 
     const row = document.createElement('div');
     row.className = `track-row ${isCurrentActive ? 'active' : ''}`;
-    row.dataset.trackId = track.id;
+    row.dataset.trackId = trackVideoId;
 
     // Column 4: Download / Delete Action Button
     let actionBtnHtml = '';
@@ -963,6 +974,9 @@ function renderTrackTable(container, tracks, tracklist = [], isOfflineView = fal
       <div class="track-row-album-col">${escapeHtml(track.album || 'Single')}</div>
       <div class="track-row-action-col">
         ${actionBtnHtml}
+        <button class="t-like-btn ${isLiked ? 'active' : ''}" title="${isLiked ? 'Remove from Liked Songs' : 'Save to Liked Songs'}" data-action="like">
+          <svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+        </button>
         <button class="t-add-btn" title="Add to Playlist" data-action="add-to-pl">
           <svg viewBox="0 0 24 24"><path fill="currentColor" d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
         </button>
@@ -975,7 +989,7 @@ function renderTrackTable(container, tracks, tracklist = [], isOfflineView = fal
 
     // Row Click (Play Track)
     row.addEventListener('click', (e) => {
-      // If clicked on download, delete, queue or add-to-pl button, handle accordingly
+      // If clicked on download, delete, like, queue or add-to-pl button, handle accordingly
       const actionTarget = e.target.closest('[data-action]');
       if (actionTarget) {
         e.stopPropagation();
@@ -984,6 +998,8 @@ function renderTrackTable(container, tracks, tracklist = [], isOfflineView = fal
           downloadSingleTrack(track);
         } else if (action === 'delete') {
           deleteSingleOfflineTrack(track.id);
+        } else if (action === 'like') {
+          toggleSingleTrackLike(track, actionTarget);
         } else if (action === 'add-to-pl') {
           openAddToPlaylistModal(track);
         } else if (action === 'queue') {
@@ -993,6 +1009,12 @@ function renderTrackTable(container, tracks, tracklist = [], isOfflineView = fal
       }
 
       playTrack(track, tracklist, idx);
+    });
+
+    // Right-Click Context Menu (Instant Add to Playlist)
+    row.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      openAddToPlaylistModal(track);
     });
 
     container.appendChild(row);
@@ -1184,6 +1206,10 @@ async function playTrack(track, tracklist = [], index = 0) {
       el.rDownloadBtn.classList.remove('downloaded');
       el.rDownloadBtn.title = 'Download song for offline listening';
     }
+
+    // Automatically check and render like button state on track load
+    const trackVideoId = track.id || track.yt_video_id || track.videoId;
+    updateHeartBtnState(trackVideoId);
 
     // Update queue now playing card
     updateQueueUI();
@@ -1495,6 +1521,199 @@ function updateQueueUI() {
         el.queueAutoplayContainer.appendChild(item);
       });
     }
+  }
+}
+
+// -------------------------------------------------------------------
+// 11.2 Liked (Favorite) Songs Management
+// -------------------------------------------------------------------
+
+function updateHeartBtnState(trackId) {
+  if (!el.pHeartBtn) return;
+  const isLiked = trackId ? state.likedTrackIds.has(trackId) : false;
+  el.pHeartBtn.classList.toggle('active', isLiked);
+  el.pHeartBtn.title = isLiked ? 'Remove from Liked Songs' : 'Save to Liked Songs';
+  if (isLiked) {
+    el.pHeartBtn.innerHTML = '<svg viewBox="0 0 24 24"><path fill="#ff2a5f" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>';
+  } else {
+    el.pHeartBtn.innerHTML = '<svg viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>';
+  }
+}
+
+async function toggleCurrentTrackLike() {
+  if (!state.currentTrack) {
+    showToast('No track currently playing.');
+    return;
+  }
+
+  const track = state.currentTrack;
+  const trackId = track.id || track.yt_video_id || track.videoId;
+  if (!trackId) return;
+
+  const wasLiked = state.likedTrackIds.has(trackId);
+  const willBeLiked = !wasLiked;
+
+  // Optimistic UI update immediately
+  if (willBeLiked) {
+    state.likedTrackIds.add(trackId);
+  } else {
+    state.likedTrackIds.delete(trackId);
+  }
+  updateHeartBtnState(trackId);
+
+  // Update matching row like buttons across visible tables
+  document.querySelectorAll(`.track-row[data-track-id="${trackId}"] .t-like-btn`).forEach(btn => {
+    btn.classList.toggle('active', willBeLiked);
+    btn.title = willBeLiked ? 'Remove from Liked Songs' : 'Save to Liked Songs';
+  });
+
+  try {
+    console.log(`[LIKES] Toggling like for track: "${track.title}" (${trackId})`);
+    const result = await window.beamly.toggleLikeTrack(track);
+    if (result && result.success) {
+      if (result.liked) {
+        state.likedTrackIds.add(trackId);
+        showToast(`Saved "${track.title}" to Liked Songs`);
+      } else {
+        state.likedTrackIds.delete(trackId);
+        showToast(`Removed "${track.title}" from Liked Songs`);
+      }
+      updateHeartBtnState(trackId);
+      await refreshLikedTracks();
+    } else {
+      if (wasLiked) state.likedTrackIds.add(trackId);
+      else state.likedTrackIds.delete(trackId);
+      updateHeartBtnState(trackId);
+      showToast('Could not update Liked Songs.');
+    }
+  } catch (err) {
+    console.error('[LIKES] Error toggling like:', err);
+    if (wasLiked) state.likedTrackIds.add(trackId);
+    else state.likedTrackIds.delete(trackId);
+    updateHeartBtnState(trackId);
+    showToast(`Like failed: ${err.message}`);
+  }
+}
+
+async function toggleSingleTrackLike(track, btnElement) {
+  if (!track) return;
+  const trackId = track.id || track.yt_video_id || track.videoId;
+  if (!trackId) return;
+
+  const wasLiked = state.likedTrackIds.has(trackId);
+  const willBeLiked = !wasLiked;
+
+  // Optimistic UI update
+  if (willBeLiked) {
+    state.likedTrackIds.add(trackId);
+  } else {
+    state.likedTrackIds.delete(trackId);
+  }
+  if (btnElement) {
+    btnElement.classList.toggle('active', willBeLiked);
+    btnElement.title = willBeLiked ? 'Remove from Liked Songs' : 'Save to Liked Songs';
+  }
+
+  // If this track is currently playing, update player bar heart too
+  if (state.currentTrack && (state.currentTrack.id === trackId || state.currentTrack.yt_video_id === trackId)) {
+    updateHeartBtnState(trackId);
+  }
+
+  try {
+    console.log(`[LIKES] Toggling like on row: "${track.title}" (${trackId})`);
+    const result = await window.beamly.toggleLikeTrack(track);
+    if (result && result.success) {
+      if (result.liked) {
+        state.likedTrackIds.add(trackId);
+        showToast(`Saved "${track.title}" to Liked Songs`);
+      } else {
+        state.likedTrackIds.delete(trackId);
+        showToast(`Removed "${track.title}" from Liked Songs`);
+      }
+      await refreshLikedTracks();
+    } else {
+      if (wasLiked) state.likedTrackIds.add(trackId);
+      else state.likedTrackIds.delete(trackId);
+      if (btnElement) btnElement.classList.toggle('active', wasLiked);
+      showToast('Could not update Liked Songs.');
+    }
+  } catch (err) {
+    console.error('[LIKES] Error toggling track row like:', err);
+    if (wasLiked) state.likedTrackIds.add(trackId);
+    else state.likedTrackIds.delete(trackId);
+    if (btnElement) btnElement.classList.toggle('active', wasLiked);
+    showToast(`Like failed: ${err.message}`);
+  }
+}
+
+async function refreshLikedTracks() {
+  try {
+    const list = await window.beamly.getLikedTracks();
+    state.likedTracks = Array.isArray(list) ? list : [];
+    state.likedTrackIds = new Set(state.likedTracks.map(t => t.id || t.yt_video_id || t.videoId));
+    console.log(`[LIKES] Loaded ${state.likedTracks.length} liked tracks.`);
+
+    // Update sidebar subtitle
+    const sub = document.querySelector('#sidebar-item-liked .library-item-sub');
+    if (sub) {
+      sub.textContent = `Auto playlist • ${state.likedTracks.length} song${state.likedTracks.length === 1 ? '' : 's'}`;
+    }
+
+    // If currently viewing liked songs playlist, re-render view
+    if (state.currentView === 'playlist' && state.activePlaylist?.id === 'local_liked_songs') {
+      state.activePlaylist.tracks = state.likedTracks;
+      el.plTrackCount.textContent = `${state.likedTracks.length} songs`;
+      renderTrackTable(el.plTracksContainer, state.likedTracks, state.likedTracks);
+    }
+  } catch (err) {
+    console.error('[LIKES] Error refreshing liked tracks:', err);
+  }
+}
+
+async function openLikedSongsPlaylist() {
+  try {
+    showToast('Loading Liked Songs...');
+    console.log('[LIKES] Opening dedicated Liked Songs playlist view...');
+    let tracks = [];
+
+    // Always fetch local liked tracks
+    const localLiked = await window.beamly.getLikedTracks();
+    tracks = Array.isArray(localLiked) ? [...localLiked] : [];
+
+    // If user is logged into Google, attempt to fetch YouTube Music cloud Liked Music ('LM') and merge
+    if (state.googleUser?.loggedIn) {
+      try {
+        const cloudLiked = await window.beamly.getPlaylist('LM');
+        if (cloudLiked && Array.isArray(cloudLiked.tracks)) {
+          const seenIds = new Set(tracks.map(t => t.id || t.yt_video_id || t.videoId));
+          for (const ct of cloudLiked.tracks) {
+            const cid = ct.id || ct.yt_video_id;
+            if (cid && !seenIds.has(cid)) {
+              seenIds.add(cid);
+              tracks.push(ct);
+            }
+          }
+        }
+      } catch (cloudErr) {
+        console.warn('[LIKES] Cloud LM playlist fetch fallback to local:', cloudErr.message);
+      }
+    }
+
+    const likedPlaylistData = {
+      id: 'local_liked_songs',
+      name: 'Liked Songs',
+      title: 'Liked Songs',
+      description: 'Your collection of favorite tracks, available anytime',
+      artwork: '',
+      owner: state.googleUser?.loggedIn ? (state.googleUser?.profile?.name || 'You') : 'You',
+      isLocal: true,
+      tracks: tracks
+    };
+
+    navigateTo('playlist', likedPlaylistData);
+  } catch (err) {
+    console.error('[LIKES] Failed to open Liked Songs playlist:', err);
+    showToast('Failed to load Liked Songs.');
   }
 }
 
@@ -2215,15 +2434,18 @@ async function handleCreateLocalPlaylist() {
   }
 
   try {
-    const pl = await window.beamly.createLocalPlaylist({ name, description: desc });
+    console.log('[PLAYLIST] Requesting local playlist creation:', name);
+    const res = await window.beamly.createLocalPlaylist({ name, description: desc });
+    const pl = res?.playlist || res;
+    if (!pl || !pl.id) {
+      throw new Error(res?.error || 'Failed to create playlist');
+    }
     showToast(`Created playlist "${name}"!`);
     closePlaylistModal();
     await loadSidebarLibrary();
-    if (pl && pl.id) {
-      openPlaylist(pl.id);
-    }
+    openPlaylist(pl.id);
   } catch (err) {
-    console.error('Failed to create playlist:', err);
+    console.error('[PLAYLIST] Failed to create playlist:', err);
     showToast(`Could not create playlist: ${err.message}`);
   }
 }
@@ -2240,6 +2462,7 @@ async function handleImportPlaylistUrl() {
     if (el.btnConfirmImportPl) el.btnConfirmImportPl.disabled = true;
     if (el.importPlBtnText) el.importPlBtnText.textContent = 'Importing...';
     showToast('Fetching playlist tracks from YouTube...');
+    console.log('[PLAYLIST] Requesting playlist import from link:', url);
 
     const result = await window.beamly.importPlaylist(url);
     if (!result || !result.tracks || result.tracks.length === 0) {
@@ -2249,12 +2472,14 @@ async function handleImportPlaylistUrl() {
     const plName = result.title || 'Imported Playlist';
     const plDesc = result.description || `Imported from YouTube (${result.tracks.length} tracks)`;
 
-    const importedPl = await window.beamly.createLocalPlaylist({
+    console.log(`[PLAYLIST] Saving imported playlist "${plName}" with ${result.tracks.length} tracks`);
+    const res = await window.beamly.createLocalPlaylist({
       name: plName,
       description: plDesc,
       tracks: result.tracks,
-      thumbnail: result.thumbnail
+      thumbnail: result.artwork || result.thumbnail
     });
+    const importedPl = res?.playlist || res;
 
     showToast(`Imported ${result.tracks.length} tracks into "${plName}"!`);
     closePlaylistModal();
@@ -2263,7 +2488,7 @@ async function handleImportPlaylistUrl() {
       openPlaylist(importedPl.id);
     }
   } catch (err) {
-    console.error('Failed to import playlist:', err);
+    console.error('[PLAYLIST] Failed to import playlist:', err);
     showToast(`Import failed: ${err.message}`);
   } finally {
     if (el.btnConfirmImportPl) el.btnConfirmImportPl.disabled = false;
@@ -2440,15 +2665,10 @@ function setupEventListeners() {
   el.btnSidebarGoogleLogin?.addEventListener('click', triggerGoogleLogin);
   el.btnUserLogout?.addEventListener('click', triggerUserLogout);
 
-  // Sidebar Liked Music item & filter chip
+  // Sidebar Liked Music item & filter chip (dedicated Liked Songs view)
   const handleLikedMusicClick = (e) => {
     e?.preventDefault();
-    if (!state.googleUser.loggedIn) {
-      showToast('Please sign in with Google to access your Liked Music.');
-      triggerGoogleLogin();
-      return;
-    }
-    openPlaylist('LM');
+    openLikedSongsPlaylist();
   };
   el.sidebarItemLiked?.addEventListener('click', handleLikedMusicClick);
   el.chipLiked?.addEventListener('click', handleLikedMusicClick);
@@ -2509,6 +2729,14 @@ function setupEventListeners() {
     el.pRepeatBtn.classList.toggle('active', state.isRepeat);
     showToast(`Repeat ${state.isRepeat ? 'Enabled' : 'Disabled'}`);
   });
+
+  // Like (Favorite) Heart Button on Player Bar
+  const handleHeartLikeClick = async (e) => {
+    e.preventDefault();
+    await toggleCurrentTrackLike();
+  };
+  el.pHeartBtn?.addEventListener('click', handleHeartLikeClick);
+  document.getElementById('like-btn')?.addEventListener('click', handleHeartLikeClick);
 
   // Download Active Track from Player Bar
   el.rDownloadBtn?.addEventListener('click', async (e) => {
@@ -2697,8 +2925,9 @@ async function init() {
   setupEventListeners();
   updateSettingsAudioQualityUI();
 
-  // Load Offline database items
+  // Load Offline database items & Liked Songs collection
   await refreshOfflineStatus();
+  await refreshLikedTracks();
 
   // Check Google / YouTube Music Authentication & Load Home Shelves
   await checkAuthStatus();

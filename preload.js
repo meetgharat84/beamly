@@ -25,12 +25,20 @@ contextBridge.exposeInMainWorld('beamly', {
   search: (query, type = 'all') => ipcRenderer.invoke('ytmusic:search', { query, type }),
 
   // Local Playlists Management
-  createLocalPlaylist: (name, description) => ipcRenderer.invoke('playlists:create-local', { name, description }),
+  createLocalPlaylist: (dataOrName, description) => {
+    const payload = typeof dataOrName === 'object' && dataOrName !== null ? dataOrName : { name: dataOrName, description };
+    return ipcRenderer.invoke('playlists:create-local', payload);
+  },
   getLocalPlaylists: () => ipcRenderer.invoke('playlists:get-local'),
   getLocalPlaylist: (playlistId) => ipcRenderer.invoke('playlists:get-local-by-id', playlistId),
   addTrackToLocalPlaylist: (playlistId, track) => ipcRenderer.invoke('playlists:add-track', { playlistId, track }),
   removeTrackFromLocalPlaylist: (playlistId, trackId) => ipcRenderer.invoke('playlists:remove-track', { playlistId, trackId }),
   deleteLocalPlaylist: (playlistId) => ipcRenderer.invoke('playlists:delete-local', playlistId),
+
+  // Liked (Favorite) Songs Collection
+  toggleLikeTrack: (track) => ipcRenderer.invoke('likes:toggle', track),
+  isLikedTrack: (trackId) => ipcRenderer.invoke('likes:is-liked', trackId),
+  getLikedTracks: () => ipcRenderer.invoke('likes:get-all'),
 
   // Playback History & Last Played
   saveLastPlayedTrack: (track) => ipcRenderer.invoke('playback:save-last-played', track),
