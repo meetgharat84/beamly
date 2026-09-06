@@ -883,7 +883,7 @@ body {
 
 .track-table-header {
   display: grid;
-  grid-template-columns: 48px 1fr 1fr 48px 80px;
+  grid-template-columns: 48px 1fr 1fr minmax(48px, auto) 80px;
   padding: 8px 16px;
   border-bottom: 1px solid var(--md-sys-color-outline-variant);
   font-size: 0.8rem;
@@ -896,7 +896,7 @@ body {
 
 .track-table-row {
   display: grid;
-  grid-template-columns: 48px 1fr 1fr 48px 80px;
+  grid-template-columns: 48px 1fr 1fr minmax(48px, auto) 80px;
   padding: 10px 16px;
   border-radius: var(--md-shape-corner-medium);
   align-items: center;
@@ -1248,14 +1248,19 @@ body {
 .t-like-btn {
   width: 32px;
   height: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  flex-shrink: 0;
+  padding: 0;
   border-radius: 50%;
   border: none;
   background: transparent;
   color: var(--md-sys-color-on-surface-variant);
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  box-sizing: border-box;
   transition: all 0.15s ease;
   opacity: 0.7;
 }
@@ -1693,7 +1698,7 @@ body {
 /* Track Row Layout & Actions */
 .track-row {
   display: grid;
-  grid-template-columns: 48px 1fr 1fr 48px 80px;
+  grid-template-columns: 48px 1fr 1fr minmax(48px, auto) 80px;
   padding: 10px 16px;
   border-radius: var(--md-shape-corner-medium);
   align-items: center;
@@ -1731,6 +1736,12 @@ body {
   cursor: pointer;
   width: 24px;
   height: 24px;
+  min-width: 24px;
+  min-height: 24px;
+  flex-shrink: 0;
+  padding: 0;
+  border-radius: 50%;
+  box-sizing: border-box;
 }
 
 .row-play-btn svg {
@@ -1800,26 +1811,38 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
+  flex-shrink: 0;
 }
 
-.track-row-action-btn {
+.track-row-action-btn,
+.track-row-action-btn.delete-btn,
+.delete-btn {
   background: transparent;
   border: none;
   color: var(--md-sys-color-on-surface-variant);
   cursor: pointer;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 32px;
   height: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  flex-shrink: 0;
+  padding: 0;
   border-radius: 50%;
+  box-sizing: border-box;
   transition: all 0.2s ease;
 }
 
-.track-row-action-btn svg {
+.track-row-action-btn svg,
+.delete-btn svg {
   width: 18px;
   height: 18px;
   fill: currentColor;
+  flex-shrink: 0;
+  display: block;
 }
 
 .track-row-action-btn:hover {
@@ -1835,7 +1858,8 @@ body {
   animation: spin 1s linear infinite;
 }
 
-.track-row-action-btn.delete-btn:hover {
+.track-row-action-btn.delete-btn:hover,
+.delete-btn:hover {
   color: var(--md-sys-color-error, #ba1a1a);
   background-color: var(--md-sys-color-error-container, #ffdad6);
 }
@@ -2129,10 +2153,15 @@ body {
   cursor: pointer;
   width: 28px;
   height: 28px;
+  min-width: 28px;
+  min-height: 28px;
+  flex-shrink: 0;
+  padding: 0;
   border-radius: 50%;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
+  box-sizing: border-box;
   transition: all 0.15s ease;
 }
 
@@ -2146,12 +2175,17 @@ body {
   border: none;
   color: var(--md-sys-color-on-surface-variant);
   cursor: pointer;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 32px;
   height: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  flex-shrink: 0;
+  padding: 0;
   border-radius: 50%;
+  box-sizing: border-box;
   transition: all 0.2s ease;
 }
 
@@ -2193,7 +2227,7 @@ body {
   .track-row,
   .track-table-row,
   .track-table-header {
-    grid-template-columns: 36px 1fr 40px 65px;
+    grid-template-columns: 36px 1fr minmax(36px, auto) 65px;
   }
   .track-row-album-col,
   .t-album,
@@ -2842,12 +2876,17 @@ body {
   border: none;
   color: var(--md-sys-color-on-surface-variant);
   cursor: pointer;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  flex-shrink: 0;
+  padding: 0;
   border-radius: 50%;
+  box-sizing: border-box;
   transition: all 0.2s ease;
 }
 
