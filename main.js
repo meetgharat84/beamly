@@ -627,9 +627,9 @@ ipcMain.handle('cast-control', async (event, { action, value }) => {
 
 // ---------------- Synced Lyrics ----------------
 
-ipcMain.handle('lyrics:get-synced', async (event, { title, artist, duration }) => {
+ipcMain.handle('lyrics:get-synced', async (event, { title, artist, duration, album }) => {
   try {
-    return await lyricsService.fetchLyrics(title, artist, duration);
+    return await lyricsService.fetchLyrics(title, artist, duration, album);
   } catch (err) {
     console.error('Error in lyrics:get-synced:', err);
     return { synced: [], plain: '', error: err.message };

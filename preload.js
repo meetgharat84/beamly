@@ -68,7 +68,7 @@ contextBridge.exposeInMainWorld('beamly', {
   castControl: (action, value) => ipcRenderer.invoke('cast-control', { action, value }),
 
   // Synced Lyrics
-  getLyrics: (title, artist, duration) => ipcRenderer.invoke('lyrics:get-synced', { title, artist, duration }),
+  getLyrics: (title, artist, duration, album) => ipcRenderer.invoke('lyrics:get-synced', { title, artist, duration, album }),
 
   // Cache & Diagnostics
   getCacheStats: () => ipcRenderer.invoke('cache:get-stats'),

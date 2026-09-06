@@ -195,6 +195,7 @@ const el = {
 
   // Synced Lyrics Overlay
   lyricsOverlay: document.getElementById('lyrics-overlay'),
+  lyricsAmbientBackdrop: document.getElementById('lyrics-ambient-backdrop'),
   lyricsSongThumb: document.getElementById('lyrics-song-thumb'),
   lyricsSongTitle: document.getElementById('lyrics-song-title'),
   lyricsSongArtist: document.getElementById('lyrics-song-artist'),
@@ -2396,40 +2397,50 @@ async function fetchAndDisplayLyrics(track) {
   state.activeLyricIndex = -1;
   state.activeLyricEl = null;
 
-  if (el.lyricsSongTitle) el.lyricsSongTitle.textContent = track.title;
-  if (el.lyricsSongArtist) el.lyricsSongArtist.textContent = track.artist;
+  if (el.lyricsSongTitle) el.lyricsSongTitle.textContent = track.title || 'Unknown Track';
+  if (el.lyricsSongArtist) el.lyricsSongArtist.textContent = track.artist || 'Unknown Artist';
   const lArtUrl = getArtworkUrl(track);
   if (el.lyricsSongThumb) {
     el.lyricsSongThumb.src = lArtUrl;
     el.lyricsSongThumb.onerror = () => handleThumbnailError(el.lyricsSongThumb);
+  }
+  if (el.lyricsAmbientBackdrop) {
+    el.lyricsAmbientBackdrop.style.backgroundImage = lArtUrl ? `url("${lArtUrl}")` : 'none';
   }
   if (el.lyricsScrollBody) {
     el.lyricsScrollBody.innerHTML = '<div class="lyrics-msg">Searching synchronized lyrics...</div>';
   }
 
   try {
-    const lyricsData = await window.beamly.getLyrics(track.title, track.artist, track.duration);
+    const trackAlbum = track.album || track.albumName || '';
+    const lyricsData = await window.beamly.getLyrics(track.title, track.artist, track.duration, trackAlbum);
     const rawSynced = lyricsData?.syncedLyrics || lyricsData?.rawLrc;
     const rawPlain = lyricsData?.plainLyrics || lyricsData?.plain;
 
-    if (!lyricsData || (!rawSynced && !rawPlain)) {
+    if (!lyricsData || (!rawSynced && !rawPlain && (!lyricsData.synced || lyricsData.synced.length === 0))) {
       if (el.lyricsScrollBody) {
-        el.lyricsScrollBody.innerHTML = '<div class="lyrics-msg">No lyrics available for this song.</div>';
+        el.lyricsScrollBody.innerHTML = '<div class="lyrics-msg">No lyrics available for this track</div>';
       }
       return;
     }
 
-    if (rawSynced) {
-      // Parse LRC format in non-blocking asynchronous chunks to avoid freezing the DOM
+    if (Array.isArray(lyricsData.synced) && lyricsData.synced.length > 0) {
+      state.currentLyrics = lyricsData.synced;
+      await renderSyncedLyrics(state.currentLyrics);
+    } else if (rawSynced) {
       state.currentLyrics = await parseLrcAsync(rawSynced);
       await renderSyncedLyrics(state.currentLyrics);
     } else if (rawPlain) {
       renderPlainLyrics(rawPlain);
+    } else {
+      if (el.lyricsScrollBody) {
+        el.lyricsScrollBody.innerHTML = '<div class="lyrics-msg">No lyrics available for this track</div>';
+      }
     }
   } catch (err) {
     console.error('Lyrics fetch error:', err);
     if (el.lyricsScrollBody) {
-      el.lyricsScrollBody.innerHTML = '<div class="lyrics-msg">Could not load lyrics.</div>';
+      el.lyricsScrollBody.innerHTML = '<div class="lyrics-msg">No lyrics available for this track</div>';
     }
   }
 }
@@ -2451,11 +2462,11 @@ async function parseLrcAsync(lrcText) {
           const minutes = parseInt(match[1], 10);
           const seconds = parseFloat(match[2]);
           const timeInSec = minutes * 60 + seconds;
-          parsed.push({ time: timeInSec, text });
+          parsed.push({ time: Math.round(timeInSec * 100) / 100, text });
         }
       }
     }
-    // Yield to the browser event loop so UI and buttons stay 100% responsive
+    // Yield to the browser event loop so UI stays completely responsive
     if (i + chunkSize < rawLines.length) {
       await new Promise(resolve => setTimeout(resolve, 0));
     }
@@ -2469,11 +2480,11 @@ async function renderSyncedLyrics(lyricsList) {
   state.activeLyricEl = null;
 
   if (!lyricsList || lyricsList.length === 0) {
-    el.lyricsScrollBody.innerHTML = '<div class="lyrics-msg">No synced lyrics available.</div>';
+    el.lyricsScrollBody.innerHTML = '<div class="lyrics-msg">No lyrics available for this track</div>';
     return;
   }
 
-  // Use DocumentFragment to batch DOM inserts and yield in chunks for very long tracks
+  // Use DocumentFragment to batch DOM inserts smoothly
   const fragment = document.createDocumentFragment();
   for (let i = 0; i < lyricsList.length; i++) {
     const item = lyricsList[i];
@@ -2483,7 +2494,7 @@ async function renderSyncedLyrics(lyricsList) {
     lineEl.dataset.time = item.time;
     lineEl.textContent = item.text || '♪';
 
-    // Click line to jump audio timestamp non-blockingly
+    // Click any lyrics line to seek the audio directly to that timestamp
     lineEl.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -2493,7 +2504,7 @@ async function renderSyncedLyrics(lyricsList) {
 
     fragment.appendChild(lineEl);
 
-    // Yield every 50 lines to prevent DOM blocking on long songs
+    // Yield in small chunks for long lyric sheets
     if (i > 0 && i % 50 === 0) {
       el.lyricsScrollBody.appendChild(fragment);
       await new Promise(resolve => setTimeout(resolve, 0));
@@ -2513,7 +2524,7 @@ function renderPlainLyrics(plainText) {
   if (!el.lyricsScrollBody) return;
   el.lyricsScrollBody.innerHTML = '';
   const pre = document.createElement('pre');
-  pre.style.cssText = 'white-space: pre-wrap; font-family: inherit; font-size: 1.15rem; line-height: 1.8; text-align: center; color: var(--md-sys-color-on-surface);';
+  pre.style.cssText = 'white-space: pre-wrap; font-family: inherit; font-size: 1.35rem; line-height: 2; text-align: center; color: rgba(255, 255, 255, 0.88); max-width: 720px; margin: 0 auto; user-select: text; padding: 20px 0;';
   pre.textContent = plainText;
   el.lyricsScrollBody.appendChild(pre);
 }
@@ -2635,7 +2646,28 @@ function openLyricsOverlay() {
   if (el.rLyricsBtn) {
     el.rLyricsBtn.classList.add('active');
   }
+
+  // Ensure current track info & dynamic ambient backdrop are reflected
+  if (state.currentTrack) {
+    const lArtUrl = getArtworkUrl(state.currentTrack);
+    if (el.lyricsSongTitle) el.lyricsSongTitle.textContent = state.currentTrack.title || 'Unknown Track';
+    if (el.lyricsSongArtist) el.lyricsSongArtist.textContent = state.currentTrack.artist || 'Unknown Artist';
+    if (el.lyricsSongThumb) el.lyricsSongThumb.src = lArtUrl;
+    if (el.lyricsAmbientBackdrop) {
+      el.lyricsAmbientBackdrop.style.backgroundImage = lArtUrl ? `url("${lArtUrl}")` : 'none';
+    }
+    if (state.currentLyrics.length === 0 && !el.lyricsScrollBody.querySelector('.lyric-line')) {
+      fetchAndDisplayLyrics(state.currentTrack);
+    }
+  }
+
   // Immediately position active lyric line when opening without lag
+  if (el.audio && el.audio.currentTime) {
+    const currentIdx = findActiveLyricIndex(el.audio.currentTime);
+    if (currentIdx >= 0) {
+      updateActiveLyricDOM(currentIdx);
+    }
+  }
   if (state.activeLyricEl && el.lyricsScrollBody) {
     requestAnimationFrame(() => {
       scrollToActiveLyric(state.activeLyricEl, true);
